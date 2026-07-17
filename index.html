@@ -3,12 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>Учебная гонка</title>
+  <title>Учебная гонка — бесшовная дорога</title>
   <style>
     :root {
       color-scheme: dark;
       --panel: rgba(9, 19, 35, .92);
-      --panel-soft: rgba(9, 19, 35, .72);
       --line: rgba(255,255,255,.15);
       --accent: #ffd54a;
       --accent-2: #46d6ff;
@@ -17,252 +16,70 @@
       --text: #f6f8ff;
       --muted: #b7c1d8;
     }
-
     * { box-sizing: border-box; }
     html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #07101e; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     button, input, textarea, select { font: inherit; }
     button { -webkit-tap-highlight-color: transparent; }
-
     #app {
-      width: 100vw;
-      height: 100vh;
-      display: grid;
-      place-items: center;
-      background:
-        radial-gradient(circle at 50% 15%, rgba(50,117,194,.28), transparent 36%),
-        linear-gradient(180deg, #10243f, #050b14);
+      width: 100vw; height: 100vh; display: grid; place-items: center;
+      background: radial-gradient(circle at 50% 15%, rgba(50,117,194,.28), transparent 36%), linear-gradient(180deg, #10243f, #050b14);
     }
-
     #stage {
-      position: relative;
-      overflow: hidden;
-      width: min(100vw, calc(100vh * 16 / 9));
-      height: min(100vh, calc(100vw * 9 / 16));
-      background: #222c38;
-      box-shadow: 0 20px 80px rgba(0,0,0,.55);
-      isolation: isolate;
-      touch-action: none;
+      position: relative; overflow: hidden; width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16));
+      background: #222c38; box-shadow: 0 20px 80px rgba(0,0,0,.55); isolation: isolate; touch-action: none;
     }
-
-    @media (orientation: portrait) {
-      #stage { width: 100vw; height: 100vh; }
-    }
-
+    @media (orientation: portrait) { #stage { width: 100vw; height: 100vh; } }
     canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-
-    .hud {
-      position: absolute;
-      z-index: 15;
-      top: max(12px, env(safe-area-inset-top));
-      left: 12px;
-      right: 12px;
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 10px;
-      pointer-events: none;
-    }
-
+    .hud { position: absolute; z-index: 15; top: max(12px, env(safe-area-inset-top)); left: 12px; right: 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; pointer-events: none; }
     .hud-group { display: flex; gap: 8px; flex-wrap: wrap; }
-    .pill {
-      min-width: 88px;
-      padding: 8px 12px;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: rgba(6, 15, 28, .76);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 8px 24px rgba(0,0,0,.22);
-    }
+    .pill { min-width: 88px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(6, 15, 28, .76); backdrop-filter: blur(10px); box-shadow: 0 8px 24px rgba(0,0,0,.22); }
     .pill small { display: block; color: var(--muted); font-size: 11px; line-height: 1.1; }
     .pill strong { display: block; color: white; font-size: 17px; margin-top: 2px; }
-
-    .icon-btn {
-      pointer-events: auto;
-      width: 42px;
-      height: 42px;
-      border: 1px solid var(--line);
-      border-radius: 13px;
-      color: white;
-      background: rgba(6, 15, 28, .78);
-      cursor: pointer;
-      font-size: 20px;
-    }
-    .icon-btn:hover { background: rgba(20, 42, 70, .95); }
-
-    .overlay {
-      position: absolute;
-      z-index: 30;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      padding: 18px;
-      background: rgba(3, 8, 15, .58);
-      backdrop-filter: blur(8px);
-    }
+    .icon-btn { pointer-events: auto; width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 13px; color: white; background: rgba(6, 15, 28, .78); cursor: pointer; font-size: 20px; }
+    .overlay { position: absolute; z-index: 30; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(3, 8, 15, .58); backdrop-filter: blur(8px); }
     .overlay.hidden { display: none; }
-
-    .panel {
-      width: min(760px, 100%);
-      max-height: calc(100vh - 36px);
-      overflow: auto;
-      padding: clamp(18px, 3vw, 30px);
-      border: 1px solid rgba(255,255,255,.16);
-      border-radius: 24px;
-      background: var(--panel);
-      color: var(--text);
-      box-shadow: 0 30px 100px rgba(0,0,0,.5);
-    }
+    .panel { width: min(760px, 100%); max-height: calc(100vh - 36px); overflow: auto; padding: clamp(18px, 3vw, 30px); border: 1px solid rgba(255,255,255,.16); border-radius: 24px; background: var(--panel); color: var(--text); box-shadow: 0 30px 100px rgba(0,0,0,.5); }
     .panel h1, .panel h2 { margin: 0 0 10px; }
     .panel p { color: var(--muted); line-height: 1.5; }
-
     .menu-grid { display: grid; gap: 22px; }
     .section-title { margin: 0 0 10px; font-size: 15px; color: #dfe7f8; }
-
-    .car-grid {
-      display: grid;
-      grid-template-columns: repeat(6, minmax(80px, 1fr));
-      gap: 10px;
-    }
+    .car-grid { display: grid; grid-template-columns: repeat(6, minmax(80px, 1fr)); gap: 10px; }
     @media (max-width: 740px) { .car-grid { grid-template-columns: repeat(3, 1fr); } }
-
-    .car-card {
-      position: relative;
-      border: 2px solid transparent;
-      border-radius: 16px;
-      background: rgba(255,255,255,.06);
-      min-height: 126px;
-      padding: 8px;
-      color: white;
-      cursor: pointer;
-      transition: transform .15s ease, border-color .15s ease, background .15s ease;
-    }
-    .car-card:hover { transform: translateY(-2px); background: rgba(255,255,255,.1); }
+    .car-card { position: relative; border: 2px solid transparent; border-radius: 16px; background: rgba(255,255,255,.06); min-height: 126px; padding: 8px; color: white; cursor: pointer; transition: transform .15s ease, border-color .15s ease, background .15s ease; }
     .car-card.selected { border-color: var(--accent); background: rgba(255,213,74,.11); }
+    .car-card:hover { transform: translateY(-2px); background: rgba(255,255,255,.1); }
     .car-card img { width: 100%; height: 86px; object-fit: contain; display: block; }
     .car-card span { display: block; font-size: 12px; text-align: center; color: #dce5f7; }
-
     .difficulty-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .difficulty-btn {
-      padding: 14px 10px;
-      border: 2px solid transparent;
-      border-radius: 14px;
-      background: rgba(255,255,255,.06);
-      color: white;
-      cursor: pointer;
-    }
+    .difficulty-btn { padding: 14px 10px; border: 2px solid transparent; border-radius: 14px; background: rgba(255,255,255,.06); color: white; cursor: pointer; }
     .difficulty-btn.selected { border-color: var(--accent-2); background: rgba(70,214,255,.12); }
     .difficulty-btn small { display: block; margin-top: 4px; color: var(--muted); }
-
-    .primary-btn, .secondary-btn, .answer-btn {
-      border: 0;
-      border-radius: 14px;
-      cursor: pointer;
-      font-weight: 800;
-    }
-    .primary-btn {
-      padding: 15px 22px;
-      background: linear-gradient(180deg, #ffe46d, #ffbf32);
-      color: #332000;
-      box-shadow: 0 10px 30px rgba(255,188,45,.25);
-    }
-    .primary-btn:hover { filter: brightness(1.05); }
+    .primary-btn, .secondary-btn, .answer-btn { border: 0; border-radius: 14px; cursor: pointer; font-weight: 800; }
+    .primary-btn { padding: 15px 22px; background: linear-gradient(180deg, #ffe46d, #ffbf32); color: #332000; box-shadow: 0 10px 30px rgba(255,188,45,.25); }
     .secondary-btn { padding: 13px 18px; background: rgba(255,255,255,.09); color: white; border: 1px solid var(--line); }
-
     .menu-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-
-    #countdown {
-      position: absolute;
-      z-index: 22;
-      inset: 0;
-      display: none;
-      place-items: center;
-      pointer-events: none;
-      font-size: clamp(80px, 20vw, 220px);
-      font-weight: 1000;
-      color: white;
-      text-shadow: 0 8px 40px rgba(0,0,0,.55), 0 0 20px rgba(255,214,74,.35);
-    }
+    #countdown { position: absolute; z-index: 22; inset: 0; display: none; place-items: center; pointer-events: none; font-size: clamp(80px, 20vw, 220px); font-weight: 1000; color: white; text-shadow: 0 8px 40px rgba(0,0,0,.55), 0 0 20px rgba(255,214,74,.35); }
     #countdown.show { display: grid; }
-
-    #challengeBanner {
-      position: absolute;
-      z-index: 20;
-      top: 84px;
-      left: 50%;
-      transform: translate(-50%, -20px);
-      padding: 10px 18px;
-      border-radius: 999px;
-      background: rgba(255, 93, 108, .9);
-      color: white;
-      font-weight: 900;
-      opacity: 0;
-      transition: .22s ease;
-      pointer-events: none;
-      text-align: center;
-    }
-    #challengeBanner.show { opacity: 1; transform: translate(-50%, 0); }
-
     #quizPanel { width: min(620px, 100%); }
     #quizQuestion { font-size: clamp(25px, 5vw, 42px); line-height: 1.2; margin: 18px 0; }
     #answers { display: grid; gap: 10px; }
     .answer-btn { padding: 15px; text-align: left; background: rgba(255,255,255,.08); color: white; border: 1px solid var(--line); }
-    .answer-btn:hover { background: rgba(255,255,255,.14); }
     .answer-btn.wrong { animation: shake .28s linear; border-color: var(--danger); background: rgba(255,93,108,.16); }
     #quizMessage { min-height: 26px; margin-top: 10px; color: var(--muted); }
     #quizMessage.ok { color: var(--success); }
     #quizMessage.bad { color: #ff9aa4; }
     @keyframes shake { 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-4px); } }
-
-    .touch-controls {
-      position: absolute;
-      z-index: 18;
-      left: 14px;
-      right: 14px;
-      bottom: max(14px, env(safe-area-inset-bottom));
-      display: none;
-      justify-content: space-between;
-      pointer-events: none;
-    }
-    .touch-controls button {
-      pointer-events: auto;
-      width: 78px;
-      height: 64px;
-      border: 1px solid rgba(255,255,255,.22);
-      border-radius: 20px;
-      background: rgba(8,19,34,.68);
-      color: white;
-      font-size: 30px;
-      backdrop-filter: blur(8px);
-    }
+    .touch-controls { position: absolute; z-index: 18; left: 14px; right: 14px; bottom: max(14px, env(safe-area-inset-bottom)); display: none; justify-content: space-between; pointer-events: none; }
+    .touch-controls button { pointer-events: auto; width: 78px; height: 64px; border: 1px solid rgba(255,255,255,.22); border-radius: 20px; background: rgba(8,19,34,.68); color: white; font-size: 30px; backdrop-filter: blur(8px); }
     @media (pointer: coarse), (max-width: 900px) { .touch-controls { display: flex; } }
-
     .editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     @media (max-width: 720px) { .editor-grid { grid-template-columns: 1fr; } }
     label { color: #d9e4f7; font-size: 13px; }
-    input, select, textarea {
-      width: 100%;
-      margin-top: 6px;
-      color: white;
-      background: rgba(255,255,255,.07);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 10px 12px;
-      outline: none;
-    }
+    input, select, textarea { width: 100%; margin-top: 6px; color: white; background: rgba(255,255,255,.07); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; outline: none; }
     textarea { min-height: 290px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; }
     .editor-actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
     .hint { font-size: 12px; color: var(--muted); }
-
-    #loading {
-      position: absolute;
-      z-index: 100;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      background: #07101e;
-      color: white;
-      text-align: center;
-    }
+    #loading { position: absolute; z-index: 100; inset: 0; display: grid; place-items: center; background: #07101e; color: white; text-align: center; }
     .spinner { width: 44px; height: 44px; margin: 0 auto 12px; border: 4px solid rgba(255,255,255,.15); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
@@ -271,7 +88,6 @@
 <div id="app">
   <main id="stage" aria-label="Учебная гоночная игра">
     <canvas id="gameCanvas"></canvas>
-
     <div class="hud" id="hud">
       <div class="hud-group">
         <div class="pill"><small>Дистанция</small><strong id="distanceValue">0 м</strong></div>
@@ -283,28 +99,22 @@
         <button class="icon-btn" id="homeButton" title="В меню">⌂</button>
       </div>
     </div>
-
-    <div id="challengeBanner">Учебное испытание впереди!</div>
     <div id="countdown">3</div>
-
     <div class="touch-controls">
       <button id="leftButton" aria-label="Влево">◀</button>
       <button id="rightButton" aria-label="Вправо">▶</button>
     </div>
-
     <section class="overlay" id="menuOverlay">
       <div class="panel">
         <div class="menu-grid">
           <div>
             <h1>🏁 Учебная гонка</h1>
-            <p>Выбери машину и уровень. Уклоняйся от транспорта. После столкновения реши задание, чтобы продолжить гонку.</p>
+            <p>Здесь уже стоит бесшовная дорога: центральный асфальт рисуется кодом, а боковой пейзаж прокручивается непрерывно. Выбери машину и уровень.</p>
           </div>
-
           <div>
             <h3 class="section-title">1. Выбери машину</h3>
             <div class="car-grid" id="carGrid"></div>
           </div>
-
           <div>
             <h3 class="section-title">2. Выбери сложность</h3>
             <div class="difficulty-row" id="difficultyRow">
@@ -313,7 +123,6 @@
               <button class="difficulty-btn" data-level="hard">Сложный<small>высокая скорость</small></button>
             </div>
           </div>
-
           <div class="menu-actions">
             <button class="primary-btn" id="startButton">Начать гонку</button>
             <button class="secondary-btn" id="editorButton">⚙ Редактор заданий</button>
@@ -321,7 +130,6 @@
         </div>
       </div>
     </section>
-
     <section class="overlay hidden" id="quizOverlay">
       <div class="panel" id="quizPanel">
         <div class="hint" id="quizLevel">Задание</div>
@@ -330,7 +138,6 @@
         <div id="quizMessage"></div>
       </div>
     </section>
-
     <section class="overlay hidden" id="pauseOverlay">
       <div class="panel" style="max-width:420px;text-align:center">
         <h2>Пауза</h2>
@@ -338,14 +145,13 @@
         <button class="primary-btn" id="resumeButton">Продолжить</button>
       </div>
     </section>
-
     <section class="overlay hidden" id="editorOverlay">
       <div class="panel">
         <h2>Редактор заданий</h2>
         <p>Задания сохраняются в этом браузере. Правильный ответ указывается номером, начиная с 0.</p>
         <div class="editor-grid">
           <label>
-            Через сколько секунд гарантировать учебное столкновение
+            Через сколько секунд гарантировать неожиданное столкновение
             <select id="forceMode">
               <option value="on">Включено</option>
               <option value="off">Выключено</option>
@@ -368,64 +174,52 @@
         <div id="editorMessage" class="hint" style="margin-top:10px"></div>
       </div>
     </section>
-
-    <div id="loading"><div><div class="spinner"></div><strong>Загружаю дорогу и машины…</strong></div></div>
+    <div id="loading"><div><div class="spinner"></div><strong>Загружаю бесшовную дорогу и машины…</strong></div></div>
   </main>
 </div>
-
 <script>
 (() => {
   'use strict';
-
   const ASSETS = {
-    roads: [
-      'assets/road/road_01.jpg',
-      'assets/road/road_02.jpg',
-      'assets/road/road_03.jpg',
-      'assets/road/road_04.jpg',
-      'assets/road/road_05.jpg',
-      'assets/road/road_06.jpg'
-    ],
+    roadside: {
+      left: 'assets/roadside/left_strip.png',
+      right: 'assets/roadside/right_strip.png'
+    },
     players: [
-      { id: 'red',    name: 'Красная',    src: 'assets/cars/player_red.png' },
-      { id: 'blue',   name: 'Синяя',      src: 'assets/cars/player_blue.png' },
-      { id: 'yellow', name: 'Жёлтая',     src: 'assets/cars/player_yellow.png' },
-      { id: 'green',  name: 'Зелёная',    src: 'assets/cars/player_green.png' },
-      { id: 'pickup', name: 'Пикап',      src: 'assets/cars/player_pickup.png' },
-      { id: 'purple', name: 'Гоночная',   src: 'assets/cars/player_purple.png' }
+      { id: 'red',    name: 'Красная',  src: 'assets/cars/player_red.png', rotation: 0 },
+      { id: 'blue',   name: 'Синяя',    src: 'assets/cars/player_blue.png', rotation: 0 },
+      { id: 'yellow', name: 'Жёлтая',   src: 'assets/cars/player_yellow.png', rotation: 0 },
+      { id: 'green',  name: 'Зелёная',  src: 'assets/cars/player_green.png', rotation: 0 },
+      { id: 'pickup', name: 'Пикап',    src: 'assets/cars/player_pickup.png', rotation: 0 },
+      { id: 'purple', name: 'Гоночная', src: 'assets/cars/player_purple.png', rotation: Math.PI }
     ],
     traffic: [
-      { id: 'taxi',         src: 'assets/traffic/taxi.png',          scale: 0.72 },
-      { id: 'police',       src: 'assets/traffic/police.png',        scale: 0.72 },
-      { id: 'ambulance',    src: 'assets/traffic/ambulance.png',     scale: 0.78 },
-      { id: 'pickup',       src: 'assets/traffic/pickup.png',        scale: 0.78 },
-      { id: 'purple_racer', src: 'assets/traffic/purple_racer.png',  scale: 0.70 },
-      { id: 'firetruck',    src: 'assets/traffic/firetruck.png',     scale: 0.92 },
-      { id: 'school_bus',   src: 'assets/traffic/school_bus.png',    scale: 0.90 }
+      { id: 'taxi',         src: 'assets/traffic/taxi.png',         scale: 0.72, rotation: 0 },
+      { id: 'police',       src: 'assets/traffic/police.png',       scale: 0.72, rotation: 0 },
+      { id: 'ambulance',    src: 'assets/traffic/ambulance.png',    scale: 0.78, rotation: 0 },
+      { id: 'pickup',       src: 'assets/traffic/pickup.png',       scale: 0.78, rotation: 0 },
+      { id: 'purple_racer', src: 'assets/traffic/purple_racer.png', scale: 0.70, rotation: Math.PI },
+      { id: 'firetruck',    src: 'assets/traffic/firetruck.png',    scale: 0.92, rotation: 0 },
+      { id: 'school_bus',   src: 'assets/traffic/school_bus.png',   scale: 0.90, rotation: 0 }
     ]
   };
 
   const DEFAULT_TASKS = [
     { level: 'easy', question: '7 + 5 = ?', answers: ['10', '12', '14'], correct: 1, explanation: '7 + 5 = 12' },
     { level: 'easy', question: '15 − 6 = ?', answers: ['9', '8', '11'], correct: 0, explanation: '15 − 6 = 9' },
-    { level: 'easy', question: 'Какое число больше?', answers: ['18', '81', '8'], correct: 1, explanation: '81 больше 18 и 8' },
     { level: 'easy', question: '4 × 3 = ?', answers: ['7', '12', '14'], correct: 1, explanation: '4 × 3 = 12' },
-
     { level: 'medium', question: '36 ÷ 4 = ?', answers: ['8', '9', '12'], correct: 1, explanation: '36 ÷ 4 = 9' },
-    { level: 'medium', question: '8 × 7 = ?', answers: ['54', '56', '64'], correct: 1, explanation: '8 × 7 = 56' },
     { level: 'medium', question: '125 + 87 = ?', answers: ['202', '212', '222'], correct: 1, explanation: '125 + 87 = 212' },
     { level: 'medium', question: 'Периметр квадрата со стороной 6 см?', answers: ['12 см', '24 см', '36 см'], correct: 1, explanation: '6 × 4 = 24 см' },
-
     { level: 'hard', question: '3(8 + 4) − 5 = ?', answers: ['31', '36', '41'], correct: 0, explanation: '3 × 12 − 5 = 31' },
     { level: 'hard', question: '2,5 × 8 = ?', answers: ['18', '20', '22'], correct: 1, explanation: '2,5 × 8 = 20' },
-    { level: 'hard', question: 'Реши: 5x = 45', answers: ['x = 8', 'x = 9', 'x = 10'], correct: 1, explanation: '45 ÷ 5 = 9' },
     { level: 'hard', question: '25% от 240 = ?', answers: ['50', '60', '80'], correct: 1, explanation: '240 ÷ 4 = 60' }
   ];
 
   const LEVELS = {
-    easy:   { speed: 250, spawnEvery: 1.85, minGap: 0.72, forceAfter: 42, label: 'Лёгкий' },
-    medium: { speed: 340, spawnEvery: 1.28, minGap: 0.54, forceAfter: 30, label: 'Средний' },
-    hard:   { speed: 445, spawnEvery: 0.92, minGap: 0.40, forceAfter: 21, label: 'Сложный' }
+    easy:   { speed: 250, spawnEvery: 1.85, forceAfter: 42, label: 'Лёгкий' },
+    medium: { speed: 340, spawnEvery: 1.28, forceAfter: 30, label: 'Средний' },
+    hard:   { speed: 445, spawnEvery: 0.92, forceAfter: 21, label: 'Сложный' }
   };
 
   const $ = selector => document.querySelector(selector);
@@ -438,9 +232,8 @@
   const pauseOverlay = $('#pauseOverlay');
   const editorOverlay = $('#editorOverlay');
   const countdownEl = $('#countdown');
-  const challengeBanner = $('#challengeBanner');
 
-  const loaded = { roads: [], players: new Map(), traffic: new Map() };
+  const loaded = { sideLeft: null, sideRight: null, players: new Map(), traffic: new Map() };
   const state = {
     mode: 'menu',
     level: 'easy',
@@ -449,16 +242,13 @@
     H: 562,
     dpr: 1,
     lastTime: 0,
-    roadTiles: [],
-    nextRoadIndex: 0,
-    roadOffset: 0,
+    sideOffset: 0,
     obstacles: [],
     particles: [],
     distance: 0,
     knowledge: 0,
     spawnTimer: 0,
     lessonTimer: 0,
-    warningShown: false,
     activeCollision: null,
     invulnerable: 0,
     keys: { left: false, right: false },
@@ -466,7 +256,7 @@
     tasks: loadTasks(),
     forceMode: localStorage.getItem('race_force_mode') || 'on',
     speedMultiplier: Number(localStorage.getItem('race_speed_multiplier') || 1),
-    player: { x: 0, y: 0, width: 70, height: 130, speedX: 620, image: null }
+    player: { x: 0, y: 0, width: 70, height: 130, speedX: 620, image: null, rotation: 0 }
   };
 
   function loadTasks() {
@@ -488,10 +278,10 @@
   }
 
   async function preload() {
-    const roadImages = await Promise.all(ASSETS.roads.map(loadImage));
-    loaded.roads.push(...roadImages);
-    await Promise.all(ASSETS.players.map(async car => loaded.players.set(car.id, await loadImage(car.src))));
-    await Promise.all(ASSETS.traffic.map(async car => loaded.traffic.set(car.id, await loadImage(car.src))));
+    loaded.sideLeft = await loadImage(ASSETS.roadside.left);
+    loaded.sideRight = await loadImage(ASSETS.roadside.right);
+    for (const car of ASSETS.players) loaded.players.set(car.id, await loadImage(car.src));
+    for (const car of ASSETS.traffic) loaded.traffic.set(car.id, await loadImage(car.src));
   }
 
   function buildCarMenu() {
@@ -518,13 +308,11 @@
     canvas.width = Math.round(state.W * state.dpr);
     canvas.height = Math.round(state.H * state.dpr);
     ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
-    resetRoadTiles();
     placePlayer(true);
   }
 
   function roadBounds() {
-    // Эти доли совпадают с дорогой на подготовленных фоновых изображениях.
-    return { left: state.W * 0.218, right: state.W * 0.782 };
+    return { left: state.W * 0.22, right: state.W * 0.78 };
   }
 
   function laneData() {
@@ -535,21 +323,12 @@
     return { left, right, laneCount, laneWidth, centers };
   }
 
-  function resetRoadTiles() {
-    if (!loaded.roads.length) return;
-    const tileH = state.W * 941 / 1672;
-    const count = Math.ceil(state.H / tileH) + 3;
-    state.roadTiles = [];
-    for (let i = 0; i < count; i++) {
-      state.roadTiles.push({ y: (i - 1) * tileH, height: tileH, imageIndex: i % loaded.roads.length });
-    }
-    state.nextRoadIndex = count % loaded.roads.length;
-  }
-
   function placePlayer(forceCenter = false) {
     const lanes = laneData();
     const img = loaded.players.get(state.selectedCar);
+    const spec = ASSETS.players.find(car => car.id === state.selectedCar);
     state.player.image = img || state.player.image;
+    state.player.rotation = spec?.rotation || 0;
     const targetW = lanes.laneWidth * 0.61;
     const ratio = img ? img.naturalHeight / img.naturalWidth : 1.8;
     state.player.width = targetW;
@@ -566,11 +345,9 @@
     state.knowledge = 0;
     state.spawnTimer = 0;
     state.lessonTimer = 0;
-    state.warningShown = false;
     state.activeCollision = null;
     state.invulnerable = 0;
-    state.roadOffset = 0;
-    resetRoadTiles();
+    state.sideOffset = 0;
     placePlayer(true);
     updateHud(0);
   }
@@ -602,7 +379,6 @@
     menuOverlay.classList.remove('hidden');
     quizOverlay.classList.add('hidden');
     pauseOverlay.classList.add('hidden');
-    challengeBanner.classList.remove('show');
   }
 
   function togglePause() {
@@ -618,37 +394,26 @@
 
   function update(dt) {
     if (state.mode !== 'running') return;
-
     const level = LEVELS[state.level];
     const roadSpeed = level.speed * state.speedMultiplier;
     state.distance += roadSpeed * dt * 0.045;
     state.invulnerable = Math.max(0, state.invulnerable - dt);
     state.lessonTimer += dt;
-
     updatePlayer(dt);
     updateRoad(dt, roadSpeed);
     updateObstacles(dt, roadSpeed);
     updateParticles(dt);
-
     state.spawnTimer += dt;
     if (state.spawnTimer >= level.spawnEvery) {
       state.spawnTimer = 0;
       spawnTraffic();
     }
-
     if (state.forceMode === 'on') {
-      const warnAt = level.forceAfter - 3.2;
-      if (!state.warningShown && state.lessonTimer >= warnAt) {
-        state.warningShown = true;
-        challengeBanner.classList.add('show');
-        setTimeout(() => challengeBanner.classList.remove('show'), 2600);
-      }
       if (state.lessonTimer >= level.forceAfter && !state.obstacles.some(o => o.kind === 'lessonGate')) {
         spawnLessonGate();
-        state.lessonTimer = -999; // новый отсчёт начнётся после решения задания
+        state.lessonTimer = -999;
       }
     }
-
     checkCollisions();
     updateHud(roadSpeed);
   }
@@ -658,7 +423,6 @@
     let direction = 0;
     if (state.keys.left) direction -= 1;
     if (state.keys.right) direction += 1;
-
     if (state.dragX !== null) {
       const target = clamp(state.dragX - state.player.width / 2, lanes.left + 4, lanes.right - state.player.width - 4);
       const delta = target - state.player.x;
@@ -670,19 +434,7 @@
   }
 
   function updateRoad(dt, speed) {
-    if (!state.roadTiles.length) return;
-    state.roadOffset += speed * dt;
-    const tileH = state.roadTiles[0].height;
-    for (const tile of state.roadTiles) tile.y += speed * dt;
-    let minY = Math.min(...state.roadTiles.map(t => t.y));
-    for (const tile of state.roadTiles) {
-      if (tile.y >= state.H + 2) {
-        tile.y = minY - tileH + 1;
-        minY = tile.y;
-        tile.imageIndex = state.nextRoadIndex;
-        state.nextRoadIndex = (state.nextRoadIndex + 1) % loaded.roads.length;
-      }
-    }
+    state.sideOffset += speed * dt;
   }
 
   function spawnTraffic() {
@@ -693,7 +445,6 @@
       if (!blocked) open.push(lane);
     }
     if (!open.length) return;
-
     const lane = open[Math.floor(Math.random() * open.length)];
     const spec = weightedTraffic();
     const img = loaded.traffic.get(spec.id);
@@ -701,23 +452,13 @@
     const ratio = img.naturalHeight / img.naturalWidth;
     const height = Math.min(state.H * 0.36, width * ratio);
     const x = lanes.centers[lane] - width / 2;
-    state.obstacles.push({
-      kind: 'traffic', lane, image: img, x, y: -height - 12, width, height,
-      extraSpeed: 0.82 + Math.random() * 0.32,
-      sway: Math.random() < 0.18 ? (Math.random() < .5 ? -1 : 1) : 0,
-      swayTime: 0,
-      hitScale: spec.id === 'school_bus' || spec.id === 'firetruck' ? 0.88 : 0.74
-    });
+    state.obstacles.push({ kind: 'traffic', lane, image: img, x, y: -height - 12, width, height, extraSpeed: 0.82 + Math.random() * 0.32, sway: Math.random() < 0.16 ? (Math.random() < .5 ? -1 : 1) : 0, swayTime: 0, rotation: spec.rotation || 0, hitScale: spec.id === 'school_bus' || spec.id === 'firetruck' ? 0.88 : 0.74 });
   }
 
   function weightedTraffic() {
     const roll = Math.random();
-    if (state.level === 'easy') {
-      return roll < .30 ? ASSETS.traffic[0] : roll < .55 ? ASSETS.traffic[3] : roll < .80 ? ASSETS.traffic[4] : ASSETS.traffic[5];
-    }
-    if (state.level === 'medium') {
-      return roll < .16 ? ASSETS.traffic[0] : roll < .32 ? ASSETS.traffic[1] : roll < .48 ? ASSETS.traffic[2] : roll < .66 ? ASSETS.traffic[3] : roll < .84 ? ASSETS.traffic[5] : ASSETS.traffic[6];
-    }
+    if (state.level === 'easy') return roll < .33 ? ASSETS.traffic[0] : roll < .58 ? ASSETS.traffic[3] : roll < .82 ? ASSETS.traffic[4] : ASSETS.traffic[5];
+    if (state.level === 'medium') return roll < .16 ? ASSETS.traffic[0] : roll < .32 ? ASSETS.traffic[1] : roll < .48 ? ASSETS.traffic[2] : roll < .66 ? ASSETS.traffic[3] : roll < .84 ? ASSETS.traffic[5] : ASSETS.traffic[6];
     return ASSETS.traffic[Math.floor(Math.random() * ASSETS.traffic.length)];
   }
 
@@ -728,18 +469,11 @@
     const gateCars = [];
     const types = ['police', 'taxi', 'ambulance', 'pickup', 'purple_racer'];
     for (let lane = 0; lane < lanes.laneCount; lane++) {
+      const spec = ASSETS.traffic.find(t => t.id === types[lane % types.length]);
       const img = loaded.traffic.get(types[lane % types.length]);
-      gateCars.push({ img, cx: lanes.centers[lane], width: lanes.laneWidth * 0.72 });
+      gateCars.push({ img, rotation: spec.rotation || 0, cx: lanes.centers[lane], width: lanes.laneWidth * 0.72 });
     }
-    state.obstacles.push({
-      kind: 'lessonGate',
-      x: lanes.left,
-      y: -height - 20,
-      width,
-      height,
-      gateCars,
-      hitScale: 1
-    });
+    state.obstacles.push({ kind: 'lessonGate', x: lanes.left, y: -height - 20, width, height, gateCars, hitScale: 1 });
   }
 
   function updateObstacles(dt, roadSpeed) {
@@ -761,10 +495,7 @@
     const p = insetRect(state.player, 0.24, 0.12);
     for (const o of state.obstacles) {
       const r = o.kind === 'lessonGate' ? { x: o.x, y: o.y, width: o.width, height: o.height } : insetRect(o, (1 - o.hitScale) / 2, 0.10);
-      if (rectsOverlap(p, r)) {
-        collide(o);
-        break;
-      }
+      if (rectsOverlap(p, r)) { collide(o); break; }
     }
   }
 
@@ -785,8 +516,7 @@
     $('#quizQuestion').textContent = task.question;
     $('#quizMessage').textContent = '';
     $('#quizMessage').className = '';
-    const answers = $('#answers');
-    answers.innerHTML = '';
+    const answers = $('#answers'); answers.innerHTML = '';
     task.answers.forEach((answer, index) => {
       const button = document.createElement('button');
       button.className = 'answer-btn';
@@ -800,20 +530,13 @@
   function checkAnswer(index, button) {
     const task = state.currentTask;
     if (index !== Number(task.correct)) {
-      button.classList.remove('wrong');
-      void button.offsetWidth;
-      button.classList.add('wrong');
+      button.classList.remove('wrong'); void button.offsetWidth; button.classList.add('wrong');
       $('#quizMessage').textContent = 'Пока неверно. Попробуй ещё раз.';
-      $('#quizMessage').className = 'bad';
-      beep(180, .10, 'square');
-      return;
+      $('#quizMessage').className = 'bad'; beep(180, .10, 'square'); return;
     }
-
     $('#quizMessage').textContent = 'Верно! ' + (task.explanation || 'Можно продолжать гонку.');
     $('#quizMessage').className = 'ok';
-    state.knowledge += state.level === 'hard' ? 3 : state.level === 'medium' ? 2 : 1;
-    beep(720, .16, 'sine');
-
+    state.knowledge += state.level === 'hard' ? 3 : state.level === 'medium' ? 2 : 1; beep(720, .16, 'sine');
     setTimeout(() => {
       quizOverlay.classList.add('hidden');
       const hit = state.activeCollision;
@@ -821,7 +544,6 @@
       state.activeCollision = null;
       state.invulnerable = 2.2;
       state.lessonTimer = 0;
-      state.warningShown = false;
       state.mode = 'running';
       state.lastTime = performance.now();
     }, 900);
@@ -830,25 +552,11 @@
   function createCrashParticles() {
     const cx = state.player.x + state.player.width / 2;
     const cy = state.player.y + state.player.height * .25;
-    for (let i = 0; i < 22; i++) {
-      state.particles.push({
-        x: cx, y: cy,
-        vx: (Math.random() - .5) * 280,
-        vy: (Math.random() - .7) * 250,
-        life: .55 + Math.random() * .45,
-        maxLife: 1,
-        size: 3 + Math.random() * 8
-      });
-    }
+    for (let i = 0; i < 22; i++) state.particles.push({ x: cx, y: cy, vx: (Math.random() - .5) * 280, vy: (Math.random() - .7) * 250, life: .55 + Math.random() * .45, size: 3 + Math.random() * 8 });
   }
 
   function updateParticles(dt) {
-    for (const p of state.particles) {
-      p.life -= dt;
-      p.vy += 500 * dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-    }
+    for (const p of state.particles) { p.life -= dt; p.vy += 500 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
     state.particles = state.particles.filter(p => p.life > 0);
   }
 
@@ -862,91 +570,37 @@
   }
 
   function drawRoadAndScenery() {
-    if (!loaded.roads.length || !state.roadTiles.length) return;
     const { left, right, laneWidth, laneCount } = laneData();
-
-    // Меняется только придорожный пейзаж. Сам асфальт и разметка рисуются кодом,
-    // поэтому все линии всегда идеально продолжаются между изображениями.
-    for (const tile of state.roadTiles) {
-      const img = loaded.roads[tile.imageIndex];
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(0, tile.y - 1, left + 2, tile.height + 2);
-      ctx.clip();
-      ctx.drawImage(img, 0, tile.y - 1, state.W, tile.height + 2);
-      ctx.restore();
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(right - 2, tile.y - 1, state.W - right + 2, tile.height + 2);
-      ctx.clip();
-      ctx.drawImage(img, 0, tile.y - 1, state.W, tile.height + 2);
-      ctx.restore();
-    }
-
-    // Земля у бордюра.
-    ctx.fillStyle = '#c89955';
-    ctx.fillRect(left - 11, 0, 11, state.H);
-    ctx.fillRect(right, 0, 11, state.H);
-
-    // Асфальт.
+    drawSideRepeat(loaded.sideLeft, 0, left);
+    drawSideRepeat(loaded.sideRight, right, state.W - right);
+    ctx.fillStyle = '#c89955'; ctx.fillRect(left - 11, 0, 11, state.H); ctx.fillRect(right, 0, 11, state.H);
     const gradient = ctx.createLinearGradient(left, 0, right, 0);
-    gradient.addColorStop(0, '#343b49');
-    gradient.addColorStop(.5, '#2c3340');
-    gradient.addColorStop(1, '#343b49');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(left, 0, right - left, state.H);
-
-    // Лёгкая текстура асфальта.
-    ctx.globalAlpha = .10;
-    ctx.strokeStyle = '#768090';
-    ctx.lineWidth = 1;
-    for (let x = left + 18; x < right; x += 36) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x + Math.sin(x) * 4, state.H);
-      ctx.stroke();
-    }
+    gradient.addColorStop(0, '#343b49'); gradient.addColorStop(.5, '#2c3340'); gradient.addColorStop(1, '#343b49');
+    ctx.fillStyle = gradient; ctx.fillRect(left, 0, right - left, state.H);
+    ctx.globalAlpha = .10; ctx.strokeStyle = '#768090'; ctx.lineWidth = 1;
+    for (let x = left + 18; x < right; x += 36) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + Math.sin(x) * 4, state.H); ctx.stroke(); }
     ctx.globalAlpha = 1;
-
-    drawCurbs(left - 10, 0, 10, state.H);
-    drawCurbs(right, 0, 10, state.H);
-
-    // Сплошные края дороги.
-    ctx.strokeStyle = '#f8fbff';
-    ctx.lineWidth = Math.max(3, state.W * .0038);
-    ctx.beginPath();
-    ctx.moveTo(left + 10, 0);
-    ctx.lineTo(left + 10, state.H);
-    ctx.moveTo(right - 10, 0);
-    ctx.lineTo(right - 10, state.H);
-    ctx.stroke();
-
-    // Разметка полос. Смещение связано со скоростью дороги.
-    const dash = Math.max(34, state.H * .065);
-    const gap = Math.max(26, state.H * .050);
-    const period = dash + gap;
-    const offset = state.roadOffset % period;
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = Math.max(3, state.W * .0045);
-    ctx.setLineDash([dash, gap]);
-    ctx.lineDashOffset = offset;
-    for (let i = 1; i < laneCount; i++) {
-      const x = left + laneWidth * i;
-      ctx.beginPath();
-      ctx.moveTo(x, -period);
-      ctx.lineTo(x, state.H + period);
-      ctx.stroke();
-    }
+    drawCurbs(left - 10, 0, 10, state.H); drawCurbs(right, 0, 10, state.H);
+    ctx.strokeStyle = '#f8fbff'; ctx.lineWidth = Math.max(3, state.W * .0038); ctx.beginPath();
+    ctx.moveTo(left + 10, 0); ctx.lineTo(left + 10, state.H); ctx.moveTo(right - 10, 0); ctx.lineTo(right - 10, state.H); ctx.stroke();
+    const dash = Math.max(34, state.H * .065), gap = Math.max(26, state.H * .050), period = dash + gap, offset = state.sideOffset % period;
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(3, state.W * .0045); ctx.setLineDash([dash, gap]); ctx.lineDashOffset = offset;
+    for (let i = 1; i < laneCount; i++) { const x = left + laneWidth * i; ctx.beginPath(); ctx.moveTo(x, -period); ctx.lineTo(x, state.H + period); ctx.stroke(); }
     ctx.setLineDash([]);
+  }
+
+  function drawSideRepeat(img, x, width) {
+    if (!img) return;
+    const drawH = width * (img.naturalHeight / img.naturalWidth);
+    const offset = state.sideOffset % drawH;
+    for (let y = -offset; y < state.H + drawH; y += drawH) ctx.drawImage(img, x, y, width, drawH);
   }
 
   function drawCurbs(x, y, width, height) {
     const blockH = Math.max(28, state.H * .055);
-    const offset = state.roadOffset % blockH;
+    const offset = state.sideOffset % blockH;
     for (let yy = y - blockH + offset, i = 0; yy < height; yy += blockH, i++) {
-      ctx.fillStyle = i % 2 ? '#626b76' : '#f6f7f8';
-      ctx.fillRect(x, yy, width, blockH + 1);
+      ctx.fillStyle = i % 2 ? '#626b76' : '#f6f7f8'; ctx.fillRect(x, yy, width, blockH + 1);
     }
   }
 
@@ -956,52 +610,34 @@
         for (const car of o.gateCars) {
           const ratio = car.img.naturalHeight / car.img.naturalWidth;
           const h = Math.min(o.height * 1.6, car.width * ratio);
-          ctx.drawImage(car.img, car.cx - car.width / 2, o.y + o.height / 2 - h / 2, car.width, h);
+          drawRotatedImage(car.img, car.cx - car.width / 2, o.y + o.height / 2 - h / 2, car.width, h, car.rotation || 0);
         }
-        // Незаметная учебная линия помогает визуально читать «контрольную точку».
-        ctx.globalAlpha = .34;
-        ctx.fillStyle = '#ff5969';
-        ctx.fillRect(o.x, o.y + o.height * .47, o.width, 5);
-        ctx.globalAlpha = 1;
-      } else {
-        ctx.drawImage(o.image, o.x, o.y, o.width, o.height);
-      }
+      } else drawRotatedImage(o.image, o.x, o.y, o.width, o.height, o.rotation || 0);
     }
   }
 
   function drawPlayer() {
-    const p = state.player;
-    if (!p.image) return;
+    const p = state.player; if (!p.image) return;
     if (state.invulnerable > 0 && Math.floor(state.invulnerable * 9) % 2 === 0) ctx.globalAlpha = .35;
-    ctx.drawImage(p.image, p.x, p.y, p.width, p.height);
-    ctx.globalAlpha = 1;
+    drawRotatedImage(p.image, p.x, p.y, p.width, p.height, p.rotation || 0); ctx.globalAlpha = 1;
+  }
+
+  function drawRotatedImage(img, x, y, width, height, rotation = 0) {
+    if (!rotation) return ctx.drawImage(img, x, y, width, height);
+    ctx.save(); ctx.translate(x + width / 2, y + height / 2); ctx.rotate(rotation); ctx.drawImage(img, -width / 2, -height / 2, width, height); ctx.restore();
   }
 
   function drawParticles() {
-    for (const p of state.particles) {
-      ctx.globalAlpha = Math.max(0, p.life);
-      ctx.fillStyle = Math.random() > .5 ? '#ffd54a' : '#ff674f';
-      ctx.fillRect(p.x, p.y, p.size, p.size);
-    }
+    for (const p of state.particles) { ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = Math.random() > .5 ? '#ffd54a' : '#ff674f'; ctx.fillRect(p.x, p.y, p.size, p.size); }
     ctx.globalAlpha = 1;
   }
 
-  function drawMenuDim() {
-    ctx.fillStyle = 'rgba(3,8,15,.18)';
-    ctx.fillRect(0, 0, state.W, state.H);
-  }
-
-  function updateHud(speed) {
-    $('#distanceValue').textContent = `${Math.floor(state.distance)} м`;
-    $('#knowledgeValue').textContent = String(state.knowledge);
-    $('#speedValue').textContent = speed ? `${Math.round(speed * .46)} км/ч` : '0';
-  }
+  function drawMenuDim() { ctx.fillStyle = 'rgba(3,8,15,.18)'; ctx.fillRect(0, 0, state.W, state.H); }
+  function updateHud(speed) { $('#distanceValue').textContent = `${Math.floor(state.distance)} м`; $('#knowledgeValue').textContent = String(state.knowledge); $('#speedValue').textContent = speed ? `${Math.round(speed * .46)} км/ч` : '0'; }
 
   function openEditor() {
     $('#tasksEditor').value = JSON.stringify(state.tasks, null, 2);
-    $('#forceMode').value = state.forceMode;
-    $('#speedMultiplier').value = String(state.speedMultiplier);
-    $('#editorMessage').textContent = '';
+    $('#forceMode').value = state.forceMode; $('#speedMultiplier').value = String(state.speedMultiplier); $('#editorMessage').textContent = '';
     editorOverlay.classList.remove('hidden');
   }
 
@@ -1015,37 +651,19 @@
         if (typeof task.question !== 'string' || !Array.isArray(task.answers) || task.answers.length < 2) throw new Error(`Задание ${i + 1}: проверь question и answers.`);
         if (!Number.isInteger(Number(task.correct)) || Number(task.correct) < 0 || Number(task.correct) >= task.answers.length) throw new Error(`Задание ${i + 1}: неверный correct.`);
       }
-      state.tasks = data;
-      state.forceMode = $('#forceMode').value;
-      state.speedMultiplier = clamp(Number($('#speedMultiplier').value) || 1, .6, 2);
-      localStorage.setItem('race_tasks', JSON.stringify(data));
-      localStorage.setItem('race_force_mode', state.forceMode);
-      localStorage.setItem('race_speed_multiplier', String(state.speedMultiplier));
-      msg.textContent = 'Сохранено.';
-      msg.style.color = '#5ce18a';
-    } catch (error) {
-      msg.textContent = error.message;
-      msg.style.color = '#ff9aa4';
-    }
+      state.tasks = data; state.forceMode = $('#forceMode').value; state.speedMultiplier = clamp(Number($('#speedMultiplier').value) || 1, .6, 2);
+      localStorage.setItem('race_tasks', JSON.stringify(data)); localStorage.setItem('race_force_mode', state.forceMode); localStorage.setItem('race_speed_multiplier', String(state.speedMultiplier));
+      msg.textContent = 'Сохранено.'; msg.style.color = '#5ce18a';
+    } catch (error) { msg.textContent = error.message; msg.style.color = '#ff9aa4'; }
   }
 
-  function resetEditor() {
-    state.tasks = structuredClone(DEFAULT_TASKS);
-    $('#tasksEditor').value = JSON.stringify(state.tasks, null, 2);
-    localStorage.removeItem('race_tasks');
-    $('#editorMessage').textContent = 'Стандартные задания восстановлены.';
-  }
+  function resetEditor() { state.tasks = structuredClone(DEFAULT_TASKS); $('#tasksEditor').value = JSON.stringify(state.tasks, null, 2); localStorage.removeItem('race_tasks'); $('#editorMessage').textContent = 'Стандартные задания восстановлены.'; }
 
   function frame(time) {
     const rawDt = state.lastTime ? (time - state.lastTime) / 1000 : 0;
-    const dt = Math.min(.04, Math.max(0, rawDt));
-    state.lastTime = time;
-    update(dt);
-    draw();
-    requestAnimationFrame(frame);
+    const dt = Math.min(.04, Math.max(0, rawDt)); state.lastTime = time; update(dt); draw(); requestAnimationFrame(frame);
   }
 
-  // Управление с клавиатуры.
   window.addEventListener('keydown', event => {
     if (['ArrowLeft', 'KeyA'].includes(event.code)) state.keys.left = true;
     if (['ArrowRight', 'KeyD'].includes(event.code)) state.keys.right = true;
@@ -1055,87 +673,31 @@
     if (['ArrowLeft', 'KeyA'].includes(event.code)) state.keys.left = false;
     if (['ArrowRight', 'KeyD'].includes(event.code)) state.keys.right = false;
   });
-
-  // Перетаскивание машины мышью или пальцем.
-  stage.addEventListener('pointerdown', event => {
-    if (state.mode !== 'running') return;
-    stage.setPointerCapture?.(event.pointerId);
-    const rect = stage.getBoundingClientRect();
-    state.dragX = event.clientX - rect.left;
-  });
-  stage.addEventListener('pointermove', event => {
-    if (state.dragX === null || state.mode !== 'running') return;
-    const rect = stage.getBoundingClientRect();
-    state.dragX = event.clientX - rect.left;
-  });
-  const endDrag = () => state.dragX = null;
-  stage.addEventListener('pointerup', endDrag);
-  stage.addEventListener('pointercancel', endDrag);
-
-  function bindHold(button, key) {
-    button.addEventListener('pointerdown', e => { e.preventDefault(); state.keys[key] = true; });
-    button.addEventListener('pointerup', () => state.keys[key] = false);
-    button.addEventListener('pointercancel', () => state.keys[key] = false);
-    button.addEventListener('pointerleave', () => state.keys[key] = false);
-  }
-  bindHold($('#leftButton'), 'left');
-  bindHold($('#rightButton'), 'right');
-
-  $('#difficultyRow').addEventListener('click', event => {
-    const btn = event.target.closest('[data-level]');
-    if (!btn) return;
-    state.level = btn.dataset.level;
-    document.querySelectorAll('.difficulty-btn').forEach(x => x.classList.toggle('selected', x === btn));
-  });
-  $('#startButton').addEventListener('click', startGame);
-  $('#pauseButton').addEventListener('click', togglePause);
-  $('#resumeButton').addEventListener('click', togglePause);
-  $('#homeButton').addEventListener('click', endToMenu);
-  $('#editorButton').addEventListener('click', openEditor);
-  $('#closeEditorButton').addEventListener('click', () => editorOverlay.classList.add('hidden'));
-  $('#saveEditorButton').addEventListener('click', saveEditor);
-  $('#resetEditorButton').addEventListener('click', resetEditor);
-
-  window.addEventListener('resize', resize);
-  new ResizeObserver(resize).observe(stage);
-
+  stage.addEventListener('pointerdown', event => { if (state.mode !== 'running') return; stage.setPointerCapture?.(event.pointerId); const rect = stage.getBoundingClientRect(); state.dragX = event.clientX - rect.left; });
+  stage.addEventListener('pointermove', event => { if (state.dragX === null || state.mode !== 'running') return; const rect = stage.getBoundingClientRect(); state.dragX = event.clientX - rect.left; });
+  const endDrag = () => state.dragX = null; stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
+  function bindHold(button, key) { button.addEventListener('pointerdown', e => { e.preventDefault(); state.keys[key] = true; }); button.addEventListener('pointerup', () => state.keys[key] = false); button.addEventListener('pointercancel', () => state.keys[key] = false); button.addEventListener('pointerleave', () => state.keys[key] = false); }
+  bindHold($('#leftButton'), 'left'); bindHold($('#rightButton'), 'right');
+  $('#difficultyRow').addEventListener('click', event => { const btn = event.target.closest('[data-level]'); if (!btn) return; state.level = btn.dataset.level; document.querySelectorAll('.difficulty-btn').forEach(x => x.classList.toggle('selected', x === btn)); });
+  $('#startButton').addEventListener('click', startGame); $('#pauseButton').addEventListener('click', togglePause); $('#resumeButton').addEventListener('click', togglePause); $('#homeButton').addEventListener('click', endToMenu); $('#editorButton').addEventListener('click', openEditor); $('#closeEditorButton').addEventListener('click', () => editorOverlay.classList.add('hidden')); $('#saveEditorButton').addEventListener('click', saveEditor); $('#resetEditorButton').addEventListener('click', resetEditor);
+  window.addEventListener('resize', resize); new ResizeObserver(resize).observe(stage);
   function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
   function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
   function rectsOverlap(a, b) { return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y; }
-  function insetRect(r, xPart, yPart) {
-    const dx = r.width * xPart;
-    const dy = r.height * yPart;
-    return { x: r.x + dx, y: r.y + dy, width: r.width - dx * 2, height: r.height - dy * 2 };
-  }
-
+  function insetRect(r, xPart, yPart) { const dx = r.width * xPart, dy = r.height * yPart; return { x: r.x + dx, y: r.y + dy, width: r.width - dx * 2, height: r.height - dy * 2 }; }
   let audioContext = null;
   function beep(freq = 440, duration = .1, type = 'sine') {
     try {
       audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-      const osc = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-      osc.type = type;
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(.045, audioContext.currentTime);
-      gain.gain.exponentialRampToValueAtTime(.0001, audioContext.currentTime + duration);
-      osc.connect(gain).connect(audioContext.destination);
-      osc.start();
-      osc.stop(audioContext.currentTime + duration);
-    } catch { /* звук необязателен */ }
+      const osc = audioContext.createOscillator(), gain = audioContext.createGain();
+      osc.type = type; osc.frequency.value = freq; gain.gain.setValueAtTime(.045, audioContext.currentTime); gain.gain.exponentialRampToValueAtTime(.0001, audioContext.currentTime + duration); osc.connect(gain).connect(audioContext.destination); osc.start(); osc.stop(audioContext.currentTime + duration);
+    } catch {}
   }
-
   async function init() {
     buildCarMenu();
-    try {
-      await preload();
-      resize();
-      loading.style.display = 'none';
-      requestAnimationFrame(frame);
-    } catch (error) {
-      loading.innerHTML = `<div style="max-width:620px;padding:24px"><h2>Не удалось запустить игру</h2><p>${error.message}</p><p>Проверь, что папка <b>assets</b> лежит рядом с файлом index.html.</p></div>`;
-    }
+    try { await preload(); resize(); loading.style.display = 'none'; requestAnimationFrame(frame); }
+    catch (error) { loading.innerHTML = `<div style="max-width:620px;padding:24px"><h2>Не удалось запустить игру</h2><p>${error.message}</p><p>Проверь, что папка <b>assets</b> лежит рядом с файлом index.html.</p></div>`; }
   }
-
   init();
 })();
 </script>
