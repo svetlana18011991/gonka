@@ -1,0 +1,1993 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <title>Учебная гонка</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --panel: rgba(9, 19, 35, .93);
+      --line: rgba(255,255,255,.15);
+      --accent: #ffd54a;
+      --accent-2: #46d6ff;
+      --success: #5ce18a;
+      --danger: #ff5d6c;
+      --text: #f6f8ff;
+      --muted: #b7c1d8;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #07101e;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, textarea, select { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+
+    #app {
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 50% 15%, rgba(50,117,194,.28), transparent 36%),
+        linear-gradient(180deg, #10243f, #050b14);
+    }
+
+    #stage {
+      position: relative;
+      overflow: hidden;
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+      background: #222c38;
+      box-shadow: 0 20px 80px rgba(0,0,0,.55);
+      isolation: isolate;
+      touch-action: none;
+    }
+
+    @media (orientation: portrait) {
+      #stage { width: 100vw; height: 100vh; }
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .hud {
+      position: absolute;
+      z-index: 15;
+      top: max(10px, env(safe-area-inset-top));
+      left: 10px;
+      right: 10px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .hud-group {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .pill {
+      min-width: 82px;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(6, 15, 28, .78);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 24px rgba(0,0,0,.22);
+    }
+
+    .pill small {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.1;
+    }
+
+    .pill strong {
+      display: block;
+      color: white;
+      font-size: 16px;
+      margin-top: 2px;
+      white-space: nowrap;
+    }
+
+    .lives-pill { min-width: 144px; }
+    #livesValue {
+      color: #ff6680;
+      letter-spacing: 1px;
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .icon-btn {
+      pointer-events: auto;
+      width: 42px;
+      height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      color: white;
+      background: rgba(6, 15, 28, .8);
+      cursor: pointer;
+      font-size: 20px;
+    }
+
+    .icon-btn:hover { background: rgba(20, 42, 70, .95); }
+
+    .overlay {
+      position: absolute;
+      z-index: 30;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: rgba(3, 8, 15, .6);
+      backdrop-filter: blur(8px);
+    }
+
+    .overlay.hidden { display: none; }
+
+    .panel {
+      width: min(760px, 100%);
+      max-height: calc(100vh - 36px);
+      overflow: auto;
+      padding: clamp(18px, 3vw, 30px);
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 24px;
+      background: var(--panel);
+      color: var(--text);
+      box-shadow: 0 30px 100px rgba(0,0,0,.5);
+    }
+
+    .panel h1, .panel h2 { margin: 0 0 10px; }
+    .panel p { color: var(--muted); line-height: 1.5; }
+    .menu-grid { display: grid; gap: 22px; }
+    .section-title { margin: 0 0 10px; font-size: 15px; color: #dfe7f8; }
+
+    .car-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(80px, 1fr));
+      gap: 10px;
+    }
+
+    @media (max-width: 740px) {
+      .car-grid { grid-template-columns: repeat(3, 1fr); }
+      .pill { min-width: 72px; padding: 6px 8px; }
+      .pill strong { font-size: 14px; }
+      .lives-pill { min-width: 125px; }
+    }
+
+    .car-card {
+      position: relative;
+      border: 2px solid transparent;
+      border-radius: 16px;
+      background: rgba(255,255,255,.06);
+      min-height: 126px;
+      padding: 8px;
+      color: white;
+      cursor: pointer;
+      transition: transform .15s ease, border-color .15s ease, background .15s ease;
+    }
+
+    .car-card.selected {
+      border-color: var(--accent);
+      background: rgba(255,213,74,.11);
+    }
+
+    .car-card:hover {
+      transform: translateY(-2px);
+      background: rgba(255,255,255,.1);
+    }
+
+    .car-card img {
+      width: 100%;
+      height: 86px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .car-card span {
+      display: block;
+      font-size: 12px;
+      text-align: center;
+      color: #dce5f7;
+    }
+
+    .difficulty-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .difficulty-btn {
+      padding: 14px 10px;
+      border: 2px solid transparent;
+      border-radius: 14px;
+      background: rgba(255,255,255,.06);
+      color: white;
+      cursor: pointer;
+    }
+
+    .difficulty-btn.selected {
+      border-color: var(--accent-2);
+      background: rgba(70,214,255,.12);
+    }
+
+    .difficulty-btn small {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+    }
+
+    .primary-btn, .secondary-btn, .answer-btn {
+      border: 0;
+      border-radius: 14px;
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .primary-btn {
+      padding: 15px 22px;
+      background: linear-gradient(180deg, #ffe46d, #ffbf32);
+      color: #332000;
+      box-shadow: 0 10px 30px rgba(255,188,45,.25);
+    }
+
+    .primary-btn:hover { filter: brightness(1.05); }
+
+    .secondary-btn {
+      padding: 13px 18px;
+      background: rgba(255,255,255,.09);
+      color: white;
+      border: 1px solid var(--line);
+    }
+
+    .menu-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    #countdown {
+      position: absolute;
+      z-index: 22;
+      inset: 0;
+      display: none;
+      place-items: center;
+      pointer-events: none;
+      font-size: clamp(80px, 20vw, 220px);
+      font-weight: 1000;
+      color: white;
+      text-shadow: 0 8px 40px rgba(0,0,0,.55), 0 0 20px rgba(255,214,74,.35);
+    }
+
+    #countdown.show { display: grid; }
+
+    #toast {
+      position: absolute;
+      z-index: 45;
+      left: 50%;
+      top: 92px;
+      transform: translate(-50%, -12px);
+      padding: 9px 16px;
+      border-radius: 999px;
+      background: rgba(9, 19, 35, .9);
+      border: 1px solid rgba(255,255,255,.18);
+      color: white;
+      font-weight: 900;
+      opacity: 0;
+      pointer-events: none;
+      transition: .2s ease;
+      white-space: nowrap;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    #quizPanel { width: min(620px, 100%); }
+    #quizQuestion { font-size: clamp(25px, 5vw, 42px); line-height: 1.2; margin: 18px 0; }
+    #quizMedia { text-align:center; margin: 8px 0 14px; }
+    #quizMedia img { display:block; max-width:min(420px, 92%); max-height:230px; object-fit:contain; margin:0 auto 10px; border-radius:16px; }
+    #quizMedia audio { width:min(460px, 94%); }
+    #answers { display: grid; gap: 10px; }
+
+    .answer-btn {
+      padding: 15px;
+      text-align: left;
+      background: rgba(255,255,255,.08);
+      color: white;
+      border: 1px solid var(--line);
+    }
+
+    .answer-btn:hover { background: rgba(255,255,255,.14); }
+
+    .answer-btn.wrong {
+      animation: shake .28s linear;
+      border-color: var(--danger);
+      background: rgba(255,93,108,.16);
+    }
+
+    #quizMessage { min-height: 26px; margin-top: 10px; color: var(--muted); }
+    #quizMessage.ok { color: var(--success); }
+    #quizMessage.bad { color: #ff9aa4; }
+
+    @keyframes shake {
+      25% { transform: translateX(-6px); }
+      50% { transform: translateX(6px); }
+      75% { transform: translateX(-4px); }
+    }
+
+    .touch-controls {
+      position: absolute;
+      z-index: 18;
+      left: 14px;
+      right: 14px;
+      bottom: max(14px, env(safe-area-inset-bottom));
+      display: none;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .touch-controls button {
+      pointer-events: auto;
+      width: 78px;
+      height: 64px;
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 20px;
+      background: rgba(8,19,34,.68);
+      color: white;
+      font-size: 30px;
+      backdrop-filter: blur(8px);
+    }
+
+    @media (pointer: coarse), (max-width: 900px) {
+      .touch-controls { display: flex; }
+    }
+
+    .editor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    @media (max-width: 720px) {
+      .editor-grid { grid-template-columns: 1fr; }
+    }
+
+    label { color: #d9e4f7; font-size: 13px; }
+
+    input, select, textarea {
+      width: 100%;
+      margin-top: 6px;
+      color: white;
+      background: rgba(255,255,255,.07);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    textarea {
+      min-height: 290px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .editor-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .hint { font-size: 12px; color: var(--muted); }
+
+    .result-panel {
+      max-width: 470px;
+      text-align: center;
+    }
+
+    .result-icon {
+      font-size: 62px;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+
+    .result-score {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin: 18px 0;
+    }
+
+    .result-score div {
+      padding: 12px 8px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,.06);
+    }
+
+    .result-score small { display: block; color: var(--muted); }
+    .result-score strong { display: block; margin-top: 4px; font-size: 20px; }
+
+    #loading {
+      position: absolute;
+      z-index: 100;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: #07101e;
+      color: white;
+      text-align: center;
+    }
+
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid rgba(255,255,255,.15);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div id="app">
+  <main id="stage" aria-label="Учебная гоночная игра">
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="hud" id="hud">
+      <div class="hud-group">
+        <div class="pill"><small>Дистанция</small><strong id="distanceValue">0 м</strong></div>
+        <div class="pill"><small>Очки</small><strong id="scoreValue">0</strong></div>
+        <div class="pill"><small>До жизни</small><strong id="lifeProgressValue">0/100</strong></div>
+        <div class="pill"><small>Задания</small><strong id="tasksValue">0/0</strong></div>
+        <div class="pill"><small>Скорость</small><strong id="speedValue">0</strong></div>
+      </div>
+      <div class="hud-group">
+        <div class="pill lives-pill"><small>Жизни</small><strong id="livesValue">♥ ♥ ♥ ♥ ♥</strong></div>
+        <button class="icon-btn" id="pauseButton" title="Пауза">⏸</button>
+        <button class="icon-btn" id="homeButton" title="В меню">⌂</button>
+      </div>
+    </div>
+
+    <div id="toast"></div>
+    <div id="countdown">3</div>
+
+    <div class="touch-controls">
+      <button id="leftButton" aria-label="Влево">◀</button>
+      <button id="rightButton" aria-label="Вправо">▶</button>
+    </div>
+
+    <section class="overlay" id="menuOverlay">
+      <div class="panel">
+        <div class="menu-grid">
+          <div>
+            <h1 id="gameTitle">🏁 Учебная гонка</h1>
+            <p id="gameInstruction">Выбери машину и уровень. Собирай звёзды: каждые <b><span id="lifeRulePoints">100</span> очков</b> восстанавливают одну потерянную жизнь. Если все сердца заполнены, бонус сохраняется до первого столкновения. После выполнения всех заданий появится финиш.</p>
+          </div>
+
+          <div>
+            <h3 class="section-title">1. Выбери машину</h3>
+            <div class="car-grid" id="carGrid"></div>
+          </div>
+
+          <div>
+            <h3 class="section-title">2. Выбери сложность</h3>
+            <div class="difficulty-row" id="difficultyRow">
+              <button class="difficulty-btn selected" data-level="easy">Лёгкий</button>
+              <button class="difficulty-btn" data-level="medium">Средний</button>
+              <button class="difficulty-btn" data-level="hard">Сложный</button>
+            </div>
+          </div>
+
+          <div class="menu-actions">
+            <button class="primary-btn" id="startButton">Начать гонку</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="overlay hidden" id="quizOverlay">
+      <div class="panel" id="quizPanel">
+        <div class="hint" id="quizLevel">Задание</div>
+        <h2 id="quizQuestion">Вопрос</h2>
+        <div id="quizMedia"></div>
+        <div id="answers"></div>
+        <div id="textAnswerWrap" class="hidden" style="display:none;gap:10px;grid-template-columns:1fr auto;margin-top:10px">
+          <input id="textAnswerInput" type="text" autocomplete="off" placeholder="Введите ответ" />
+          <button class="primary-btn" id="textAnswerButton" type="button">Ответить</button>
+        </div>
+        <div id="quizMessage"></div>
+      </div>
+    </section>
+
+    <section class="overlay hidden" id="pauseOverlay">
+      <div class="panel result-panel">
+        <h2>Пауза</h2>
+        <p>Гонка остановлена.</p>
+        <button class="primary-btn" id="resumeButton">Продолжить</button>
+      </div>
+    </section>
+
+    <section class="overlay hidden" id="winOverlay">
+      <div class="panel result-panel">
+        <div class="result-icon">🏆</div>
+        <h2>Финиш!</h2>
+        <p>Все задания выполнены. Гонка завершена.</p>
+        <div class="result-score">
+          <div><small>Очки</small><strong id="winScore">0</strong></div>
+          <div><small>Дистанция</small><strong id="winDistance">0 м</strong></div>
+          <div><small>Жизни</small><strong id="winLives">0</strong></div>
+        </div>
+        <div class="menu-actions" style="justify-content:center">
+          <button class="primary-btn" id="winRestartButton">Ещё раз</button>
+          <button class="secondary-btn" id="winHomeButton">В меню</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="overlay hidden" id="gameOverOverlay">
+      <div class="panel result-panel">
+        <div class="result-icon">💥</div>
+        <h2>Жизни закончились</h2>
+        <p>До финиша добраться не удалось. Начни гонку заново.</p>
+        <div class="result-score">
+          <div><small>Очки</small><strong id="loseScore">0</strong></div>
+          <div><small>Задания</small><strong id="loseTasks">0/0</strong></div>
+          <div><small>Дистанция</small><strong id="loseDistance">0 м</strong></div>
+        </div>
+        <div class="menu-actions" style="justify-content:center">
+          <button class="primary-btn" id="loseRestartButton">Начать сначала</button>
+          <button class="secondary-btn" id="loseHomeButton">В меню</button>
+        </div>
+      </div>
+    </section>
+
+
+    <div id="loading"><div class="spinner" aria-label="Загрузка"></div></div>
+  </main>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // При скачивании HTML редактор заменяет null на встроенные настройки.
+  const EMBEDDED_CONFIG = null;
+
+  function decodeGameConfig(value) {
+    if (!value) return null;
+    try {
+      const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+      const bytes = Uint8Array.from(atob(padded), char => char.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(bytes));
+    } catch (error) {
+      console.warn('Не удалось прочитать настройки игры', error);
+      return null;
+    }
+  }
+
+  function readGameConfig() {
+    if (EMBEDDED_CONFIG && typeof EMBEDDED_CONFIG === 'object') return EMBEDDED_CONFIG;
+    const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+    return decodeGameConfig(hash.get('config')) || {};
+  }
+
+  const GAME_CONFIG = readGameConfig();
+
+  const ASSETS = {
+    roadside: {
+      left: 'assets/roadside/left_strip.png',
+      right: 'assets/roadside/right_strip.png'
+    },
+    players: [
+      { id: 'red',    name: 'Красная',  src: 'assets/cars/player_red.png', rotation: 0 },
+      { id: 'blue',   name: 'Синяя',    src: 'assets/cars/player_blue.png', rotation: 0 },
+      { id: 'yellow', name: 'Жёлтая',   src: 'assets/cars/player_yellow.png', rotation: 0 },
+      { id: 'green',  name: 'Зелёная',  src: 'assets/cars/player_green.png', rotation: 0 },
+      { id: 'pickup', name: 'Пикап',    src: 'assets/cars/player_pickup.png', rotation: 0 },
+      { id: 'purple', name: 'Гоночная', src: 'assets/cars/player_purple.png', rotation: 0 }
+    ],
+    traffic: [
+      { id: 'taxi',         src: 'assets/traffic/taxi.png',         scale: 0.72, rotation: 0 },
+      { id: 'police',       src: 'assets/traffic/police.png',       scale: 0.72, rotation: 0 },
+      { id: 'ambulance',    src: 'assets/traffic/ambulance.png',    scale: 0.78, rotation: 0 },
+      { id: 'pickup',       src: 'assets/traffic/pickup.png',       scale: 0.78, rotation: 0 },
+      { id: 'purple_racer', src: 'assets/traffic/purple_racer.png', scale: 0.70, rotation: 0 },
+      { id: 'firetruck',    src: 'assets/traffic/firetruck.png',    scale: 0.92, rotation: 0 },
+      { id: 'school_bus',   src: 'assets/traffic/school_bus.png',   scale: 0.90, rotation: 0 }
+    ]
+  };
+
+  const DEFAULT_TASKS = [
+    { level: 'easy', question: '7 + 5 = ?', answers: ['10', '12', '14'], correct: 1, explanation: '7 + 5 = 12' },
+    { level: 'easy', question: '15 − 6 = ?', answers: ['9', '8', '11'], correct: 0, explanation: '15 − 6 = 9' },
+    { level: 'easy', question: '4 × 3 = ?', answers: ['7', '12', '14'], correct: 1, explanation: '4 × 3 = 12' },
+    { level: 'easy', question: 'Какое число больше?', answers: ['38', '83', '28'], correct: 1, explanation: '83 больше 38 и 28' },
+    { level: 'easy', question: '20 − 7 = ?', answers: ['12', '13', '14'], correct: 1, explanation: '20 − 7 = 13' },
+
+    { level: 'medium', question: '36 ÷ 4 = ?', answers: ['8', '9', '12'], correct: 1, explanation: '36 ÷ 4 = 9' },
+    { level: 'medium', question: '125 + 87 = ?', answers: ['202', '212', '222'], correct: 1, explanation: '125 + 87 = 212' },
+    { level: 'medium', question: 'Периметр квадрата со стороной 6 см?', answers: ['12 см', '24 см', '36 см'], correct: 1, explanation: '6 × 4 = 24 см' },
+    { level: 'medium', question: '8 × 7 = ?', answers: ['54', '56', '64'], correct: 1, explanation: '8 × 7 = 56' },
+    { level: 'medium', question: '240 ÷ 6 = ?', answers: ['30', '40', '50'], correct: 1, explanation: '240 ÷ 6 = 40' },
+
+    { level: 'hard', question: '3(8 + 4) − 5 = ?', answers: ['31', '36', '41'], correct: 0, explanation: '3 × 12 − 5 = 31' },
+    { level: 'hard', question: '2,5 × 8 = ?', answers: ['18', '20', '22'], correct: 1, explanation: '2,5 × 8 = 20' },
+    { level: 'hard', question: '25% от 240 = ?', answers: ['50', '60', '80'], correct: 1, explanation: '240 ÷ 4 = 60' },
+    { level: 'hard', question: 'Реши: 5x = 45', answers: ['x = 8', 'x = 9', 'x = 10'], correct: 1, explanation: '45 ÷ 5 = 9' },
+    { level: 'hard', question: '0,75 + 1,8 = ?', answers: ['2,45', '2,55', '2,65'], correct: 1, explanation: '0,75 + 1,8 = 2,55' }
+  ];
+
+  const DEFAULT_LEVELS = {
+    easy:   { speed: 270, spawnEvery: 1.32, forceAfter: 20, hunterChance: 0.42, followSpeed: 0.70, label: 'Лёгкий' },
+    medium: { speed: 365, spawnEvery: 0.96, forceAfter: 14, hunterChance: 0.62, followSpeed: 0.92, label: 'Средний' },
+    hard:   { speed: 470, spawnEvery: 0.70, forceAfter: 10, hunterChance: 0.80, followSpeed: 1.18, label: 'Сложный' }
+  };
+
+  const LEVELS = structuredClone(DEFAULT_LEVELS);
+  for (const key of ['easy', 'medium', 'hard']) {
+    if (GAME_CONFIG.levels?.[key]) Object.assign(LEVELS[key], GAME_CONFIG.levels[key]);
+  }
+
+  const MAX_LIVES = Math.max(1, Math.min(10, Number(GAME_CONFIG.maxLives) || 5));
+  const STAR_POINTS = Math.max(1, Number(GAME_CONFIG.starPoints) || 10);
+  const LIFE_SCORE_STEP = Math.max(10, Number(GAME_CONFIG.lifeScoreStep) || 100);
+
+  const $ = selector => document.querySelector(selector);
+  const canvas = $('#gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const stage = $('#stage');
+  const loading = $('#loading');
+  const menuOverlay = $('#menuOverlay');
+  const quizOverlay = $('#quizOverlay');
+  const pauseOverlay = $('#pauseOverlay');
+  const winOverlay = $('#winOverlay');
+  const gameOverOverlay = $('#gameOverOverlay');
+  const countdownEl = $('#countdown');
+  const toastEl = $('#toast');
+
+  const loaded = {
+    sideLeft: null,
+    sideRight: null,
+    players: new Map(),
+    traffic: new Map()
+  };
+
+  const state = {
+    mode: 'menu',
+    level: 'easy',
+    selectedCar: 'red',
+    W: 1000,
+    H: 562,
+    dpr: 1,
+    lastTime: 0,
+    sideOffset: 0,
+    obstacles: [],
+    collectibles: [],
+    particles: [],
+    distance: 0,
+    score: 0,
+    lives: MAX_LIVES,
+    nextLifeScore: LIFE_SCORE_STEP,
+    lifeBonusBank: 0,
+    spawnTimer: 0,
+    collectibleTimer: 0,
+    lessonTimer: 0,
+    activeCollision: null,
+    invulnerable: 0,
+    keys: { left: false, right: false },
+    dragX: null,
+    tasks: loadTasks(),
+    taskQueue: [],
+    currentTask: null,
+    completedTasks: 0,
+    totalTasks: 0,
+    finishMode: false,
+    forceMode: GAME_CONFIG.forceMode || 'on',
+    speedMultiplier: Number(GAME_CONFIG.speedMultiplier || 1),
+    toastTimer: null,
+    player: {
+      x: 0,
+      y: 0,
+      width: 70,
+      height: 130,
+      speedX: 640,
+      image: null,
+      rotation: 0
+    }
+  };
+
+  function loadTasks() {
+    if (Array.isArray(GAME_CONFIG.tasks) && GAME_CONFIG.tasks.length) {
+      return structuredClone(GAME_CONFIG.tasks);
+    }
+    return structuredClone(DEFAULT_TASKS);
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Не удалось загрузить ' + src));
+      img.src = src;
+    });
+  }
+
+  async function preload() {
+    loaded.sideLeft = await loadImage(ASSETS.roadside.left);
+    loaded.sideRight = await loadImage(ASSETS.roadside.right);
+    for (const car of ASSETS.players) {
+      loaded.players.set(car.id, await loadImage(car.src));
+    }
+    for (const car of ASSETS.traffic) {
+      loaded.traffic.set(car.id, await loadImage(car.src));
+    }
+  }
+
+  function buildCarMenu() {
+    const grid = $('#carGrid');
+    grid.innerHTML = '';
+    for (const car of ASSETS.players) {
+      const btn = document.createElement('button');
+      btn.className = 'car-card' + (car.id === state.selectedCar ? ' selected' : '');
+      btn.dataset.car = car.id;
+      btn.innerHTML = `<img src="${car.src}" alt="${car.name}"><span>${car.name}</span>`;
+      btn.addEventListener('click', () => {
+        state.selectedCar = car.id;
+        document.querySelectorAll('.car-card').forEach(card => {
+          card.classList.toggle('selected', card.dataset.car === car.id);
+        });
+      });
+      grid.appendChild(btn);
+    }
+  }
+
+  function resize() {
+    const rect = stage.getBoundingClientRect();
+    state.W = Math.max(320, rect.width);
+    state.H = Math.max(480, rect.height);
+    state.dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(state.W * state.dpr);
+    canvas.height = Math.round(state.H * state.dpr);
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    placePlayer(true);
+  }
+
+  function roadBounds() {
+    return { left: state.W * 0.22, right: state.W * 0.78 };
+  }
+
+  function laneData() {
+    const { left, right } = roadBounds();
+    const laneCount = 5;
+    const laneWidth = (right - left) / laneCount;
+    const centers = Array.from(
+      { length: laneCount },
+      (_, index) => left + laneWidth * (index + 0.5)
+    );
+    return { left, right, laneCount, laneWidth, centers };
+  }
+
+  function placePlayer(forceCenter = false) {
+    const lanes = laneData();
+    const image = loaded.players.get(state.selectedCar);
+    const spec = ASSETS.players.find(car => car.id === state.selectedCar);
+    state.player.image = image || state.player.image;
+    state.player.rotation = spec?.rotation || 0;
+
+    const targetWidth = lanes.laneWidth * 0.61;
+    const ratio = image ? image.naturalHeight / image.naturalWidth : 1.8;
+    state.player.width = targetWidth;
+    state.player.height = Math.min(state.H * 0.23, targetWidth * ratio);
+    state.player.y = state.H * 0.77 - state.player.height / 2;
+
+    if (forceCenter || !Number.isFinite(state.player.x)) {
+      state.player.x = lanes.centers[Math.floor(lanes.laneCount / 2)] - state.player.width / 2;
+    }
+
+    state.player.x = clamp(
+      state.player.x,
+      lanes.left + 4,
+      lanes.right - state.player.width - 4
+    );
+  }
+
+  function prepareTaskQueue() {
+    const levelTasks = state.tasks.filter(task => task.level === state.level);
+    const pool = levelTasks.length ? levelTasks : state.tasks;
+    state.taskQueue = pool.map(task => structuredClone(task));
+    state.completedTasks = 0;
+    state.totalTasks = state.taskQueue.length;
+  }
+
+  function resetGame() {
+    state.obstacles = [];
+    state.collectibles = [];
+    state.particles = [];
+    state.distance = 0;
+    state.score = 0;
+    state.lives = MAX_LIVES;
+    state.nextLifeScore = LIFE_SCORE_STEP;
+    state.lifeBonusBank = 0;
+    state.spawnTimer = 0;
+    state.collectibleTimer = 0;
+    state.lessonTimer = 0;
+    state.activeCollision = null;
+    state.currentTask = null;
+    state.invulnerable = 0;
+    state.sideOffset = 0;
+    state.finishMode = false;
+    prepareTaskQueue();
+    placePlayer(true);
+    updateHud(0);
+  }
+
+  function startGame() {
+    resetGame();
+    menuOverlay.classList.add('hidden');
+    pauseOverlay.classList.add('hidden');
+    quizOverlay.classList.add('hidden');
+    winOverlay.classList.add('hidden');
+    gameOverOverlay.classList.add('hidden');
+    state.mode = 'countdown';
+    runCountdown();
+  }
+
+  async function runCountdown() {
+    countdownEl.classList.add('show');
+    for (const value of ['3', '2', '1', 'СТАРТ!']) {
+      countdownEl.textContent = value;
+      beep(value === 'СТАРТ!' ? 760 : 420, value === 'СТАРТ!' ? 0.20 : 0.10);
+      await sleep(value === 'СТАРТ!' ? 600 : 720);
+    }
+    countdownEl.classList.remove('show');
+    state.mode = 'running';
+    state.lastTime = performance.now();
+
+    if (!state.totalTasks) {
+      spawnFinishLine();
+    }
+  }
+
+  function endToMenu() {
+    state.mode = 'menu';
+    state.obstacles = [];
+    state.collectibles = [];
+    menuOverlay.classList.remove('hidden');
+    quizOverlay.classList.add('hidden');
+    pauseOverlay.classList.add('hidden');
+    winOverlay.classList.add('hidden');
+    gameOverOverlay.classList.add('hidden');
+  }
+
+  function togglePause() {
+    if (state.mode === 'running') {
+      state.mode = 'paused';
+      pauseOverlay.classList.remove('hidden');
+    } else if (state.mode === 'paused') {
+      state.mode = 'running';
+      state.lastTime = performance.now();
+      pauseOverlay.classList.add('hidden');
+    }
+  }
+
+  function update(dt) {
+    if (state.mode !== 'running') return;
+
+    const level = LEVELS[state.level];
+    const roadSpeed = level.speed * state.speedMultiplier;
+    const gateActive = state.obstacles.some(obstacle => obstacle.kind === 'lessonGate');
+
+    state.distance += roadSpeed * dt * 0.045;
+    state.invulnerable = Math.max(0, state.invulnerable - dt);
+
+    if (!state.finishMode) {
+      state.lessonTimer += dt;
+    }
+
+    updatePlayer(dt);
+    updateRoad(dt, roadSpeed);
+    updateObstacles(dt, roadSpeed);
+    updateCollectibles(dt, roadSpeed);
+    updateParticles(dt);
+
+    if (!state.finishMode && !gateActive) {
+      state.spawnTimer += dt;
+      if (state.spawnTimer >= level.spawnEvery) {
+        state.spawnTimer = 0;
+        spawnTraffic();
+      }
+
+      state.collectibleTimer += dt;
+      if (state.collectibleTimer >= 1.55 + Math.random() * 0.85) {
+        state.collectibleTimer = 0;
+        spawnCollectible();
+      }
+    }
+
+    if (
+      state.forceMode === 'on' &&
+      !state.finishMode &&
+      state.taskQueue.length &&
+      state.lessonTimer >= level.forceAfter &&
+      !gateActive
+    ) {
+      spawnLessonGate();
+      state.lessonTimer = -999;
+    }
+
+    checkCollectibles();
+    checkCollisions();
+    updateHud(roadSpeed);
+  }
+
+  function updatePlayer(dt) {
+    const lanes = laneData();
+    let direction = 0;
+    if (state.keys.left) direction -= 1;
+    if (state.keys.right) direction += 1;
+
+    if (state.dragX !== null) {
+      const target = clamp(
+        state.dragX - state.player.width / 2,
+        lanes.left + 4,
+        lanes.right - state.player.width - 4
+      );
+      const delta = target - state.player.x;
+      state.player.x += delta * Math.min(1, dt * 10);
+    } else {
+      state.player.x += direction * state.player.speedX * dt;
+    }
+
+    state.player.x = clamp(
+      state.player.x,
+      lanes.left + 4,
+      lanes.right - state.player.width - 4
+    );
+  }
+
+  function updateRoad(dt, speed) {
+    state.sideOffset += speed * dt;
+  }
+
+  function spawnTraffic() {
+    const lanes = laneData();
+    const level = LEVELS[state.level];
+    const aggressive = Math.random() < level.hunterChance;
+    const playerCenter = state.player.x + state.player.width / 2;
+    const playerLane = nearestLaneIndex(playerCenter, lanes.centers);
+
+    const openLanes = [];
+    for (let lane = 0; lane < lanes.laneCount; lane++) {
+      const blocked = state.obstacles.some(obstacle =>
+        obstacle.kind === 'traffic' &&
+        obstacle.lane === lane &&
+        obstacle.y < state.H * 0.36
+      );
+      if (!blocked) openLanes.push(lane);
+    }
+
+    if (!openLanes.length) return;
+
+    let lane;
+    if (aggressive && openLanes.includes(playerLane)) {
+      lane = playerLane;
+    } else {
+      lane = openLanes[Math.floor(Math.random() * openLanes.length)];
+    }
+
+    const spec = weightedTraffic();
+    const image = loaded.traffic.get(spec.id);
+    const width = lanes.laneWidth * spec.scale;
+    const ratio = image.naturalHeight / image.naturalWidth;
+    const height = Math.min(state.H * 0.36, width * ratio);
+    const x = lanes.centers[lane] - width / 2;
+
+    state.obstacles.push({
+      kind: 'traffic',
+      lane,
+      image,
+      x,
+      y: -height - 12,
+      width,
+      height,
+      extraSpeed: aggressive ? 1.07 + Math.random() * 0.18 : 0.90 + Math.random() * 0.24,
+      sway: aggressive ? 0 : (Math.random() < 0.20 ? (Math.random() < .5 ? -1 : 1) : 0),
+      swayTime: 0,
+      aggressive,
+      followSpeed: level.followSpeed,
+      rotation: spec.rotation || 0,
+      hitScale: spec.id === 'school_bus' || spec.id === 'firetruck' ? 0.88 : 0.74
+    });
+  }
+
+  function weightedTraffic() {
+    const roll = Math.random();
+    if (state.level === 'easy') {
+      return roll < .28 ? ASSETS.traffic[0]
+        : roll < .48 ? ASSETS.traffic[1]
+        : roll < .68 ? ASSETS.traffic[3]
+        : roll < .85 ? ASSETS.traffic[4]
+        : ASSETS.traffic[5];
+    }
+    if (state.level === 'medium') {
+      return roll < .15 ? ASSETS.traffic[0]
+        : roll < .30 ? ASSETS.traffic[1]
+        : roll < .45 ? ASSETS.traffic[2]
+        : roll < .62 ? ASSETS.traffic[3]
+        : roll < .79 ? ASSETS.traffic[5]
+        : ASSETS.traffic[6];
+    }
+    return ASSETS.traffic[Math.floor(Math.random() * ASSETS.traffic.length)];
+  }
+
+  function spawnCollectible() {
+    const lanes = laneData();
+    const available = [];
+
+    for (let lane = 0; lane < lanes.laneCount; lane++) {
+      const blocked = state.obstacles.some(obstacle =>
+        obstacle.kind !== 'finish' &&
+        obstacle.y < state.H * 0.30 &&
+        (
+          obstacle.kind === 'lessonGate' ||
+          obstacle.lane === lane
+        )
+      );
+      if (!blocked) available.push(lane);
+    }
+
+    if (!available.length) return;
+
+    const lane = available[Math.floor(Math.random() * available.length)];
+    const radius = Math.min(22, lanes.laneWidth * 0.18);
+
+    state.collectibles.push({
+      lane,
+      x: lanes.centers[lane],
+      y: -radius * 3,
+      radius,
+      rotation: Math.random() * Math.PI * 2,
+      pulse: Math.random() * Math.PI * 2
+    });
+  }
+
+  function spawnLessonGate() {
+    const lanes = laneData();
+
+    // Убираем только входящий верхний трафик, чтобы случайная машина
+    // не наложилась на обязательную группу.
+    state.obstacles = state.obstacles.filter(obstacle =>
+      obstacle.kind !== 'traffic' || obstacle.y > state.H * 0.62
+    );
+    state.collectibles = state.collectibles.filter(item => item.y > state.H * 0.62);
+
+    const types = ['police', 'taxi', 'ambulance', 'pickup', 'purple_racer'];
+    const offsets = [0.00, 0.34, 0.14, 0.48, 0.25];
+    const gateCars = [];
+    let maxBottom = 0;
+
+    for (let lane = 0; lane < lanes.laneCount; lane++) {
+      const type = types[lane % types.length];
+      const spec = ASSETS.traffic.find(item => item.id === type);
+      const image = loaded.traffic.get(type);
+      const width = lanes.laneWidth * 0.68;
+      const ratio = image.naturalHeight / image.naturalWidth;
+      const height = Math.min(state.H * 0.27, width * ratio);
+      const offsetY = offsets[lane] * lanes.laneWidth;
+      maxBottom = Math.max(maxBottom, offsetY + height);
+
+      gateCars.push({
+        image,
+        rotation: spec?.rotation || 0,
+        centerX: lanes.centers[lane],
+        width,
+        height,
+        offsetY
+      });
+    }
+
+    state.obstacles.push({
+      kind: 'lessonGate',
+      x: lanes.left,
+      y: -maxBottom - 35,
+      width: lanes.right - lanes.left,
+      height: maxBottom,
+      gateCars
+    });
+
+    state.spawnTimer = 0;
+    state.collectibleTimer = 0;
+  }
+
+  function spawnFinishLine() {
+    if (state.finishMode) return;
+
+    const lanes = laneData();
+    state.finishMode = true;
+    state.obstacles = [];
+    state.collectibles = [];
+    state.spawnTimer = 0;
+    state.lessonTimer = 0;
+
+    state.obstacles.push({
+      kind: 'finish',
+      x: lanes.left,
+      y: -state.H * 0.28,
+      width: lanes.right - lanes.left,
+      height: Math.max(42, state.H * 0.065)
+    });
+
+    showToast('Все задания выполнены — финиш впереди!');
+  }
+
+  function updateObstacles(dt, roadSpeed) {
+    const lanes = laneData();
+
+    for (const obstacle of state.obstacles) {
+      if (obstacle.kind === 'finish') {
+        obstacle.y += roadSpeed * 0.78 * dt;
+        continue;
+      }
+
+      obstacle.y += roadSpeed * (obstacle.kind === 'lessonGate' ? 1.0 : obstacle.extraSpeed) * dt;
+
+      if (obstacle.kind !== 'traffic') continue;
+
+      if (obstacle.aggressive && obstacle.y < state.H * 0.54) {
+        const playerCenter = state.player.x + state.player.width / 2;
+        const targetX = clamp(
+          playerCenter - obstacle.width / 2,
+          lanes.left + 3,
+          lanes.right - obstacle.width - 3
+        );
+        const maxMove = lanes.laneWidth * obstacle.followSpeed * dt;
+        obstacle.x += clamp(targetX - obstacle.x, -maxMove, maxMove);
+        obstacle.lane = nearestLaneIndex(
+          obstacle.x + obstacle.width / 2,
+          lanes.centers
+        );
+      } else if (obstacle.sway) {
+        obstacle.swayTime += dt;
+        if (obstacle.swayTime > 1.4 && Math.random() < dt * 0.35) {
+          obstacle.sway *= -1;
+        }
+        obstacle.x += obstacle.sway * lanes.laneWidth * 0.12 * dt;
+        obstacle.x = clamp(
+          obstacle.x,
+          lanes.left + 3,
+          lanes.right - obstacle.width - 3
+        );
+      }
+    }
+
+    state.obstacles = state.obstacles.filter(obstacle =>
+      obstacle.y < state.H + obstacle.height + 100
+    );
+  }
+
+  function updateCollectibles(dt, roadSpeed) {
+    for (const item of state.collectibles) {
+      item.y += roadSpeed * 0.94 * dt;
+      item.rotation += dt * 2.4;
+      item.pulse += dt * 5;
+    }
+
+    state.collectibles = state.collectibles.filter(item =>
+      item.y < state.H + item.radius * 4
+    );
+  }
+
+  function checkCollectibles() {
+    if (state.mode !== 'running') return;
+
+    const playerRect = insetRect(state.player, 0.18, 0.08);
+
+    for (let index = state.collectibles.length - 1; index >= 0; index--) {
+      const item = state.collectibles[index];
+      const rect = {
+        x: item.x - item.radius,
+        y: item.y - item.radius,
+        width: item.radius * 2,
+        height: item.radius * 2
+      };
+
+      if (!rectsOverlap(playerRect, rect)) continue;
+
+      state.collectibles.splice(index, 1);
+      state.score += STAR_POINTS;
+      createCollectParticles(item.x, item.y);
+      beep(880, .08, 'sine');
+      showToast(`+${STAR_POINTS} очков`);
+
+      processLifeBonuses();
+    }
+  }
+
+  function processLifeBonuses() {
+    while (state.score >= state.nextLifeScore) {
+      state.lifeBonusBank += 1;
+      state.nextLifeScore += LIFE_SCORE_STEP;
+    }
+
+    let restored = 0;
+    while (state.lifeBonusBank > 0 && state.lives < MAX_LIVES) {
+      state.lifeBonusBank -= 1;
+      state.lives += 1;
+      restored += 1;
+    }
+
+    if (restored > 0) {
+      showToast(restored === 1 ? 'Бонус: +1 жизнь' : `Бонус: +${restored} жизни`);
+      beep(1040, .16, 'sine');
+    }
+  }
+
+  function checkCollisions() {
+    if (state.invulnerable > 0 || state.mode !== 'running') return;
+
+    const playerRect = insetRect(state.player, 0.24, 0.12);
+
+    for (const obstacle of state.obstacles) {
+      if (obstacle.kind === 'finish') {
+        const finishRect = {
+          x: obstacle.x,
+          y: obstacle.y,
+          width: obstacle.width,
+          height: obstacle.height
+        };
+        if (rectsOverlap(playerRect, finishRect)) {
+          finishGame();
+          return;
+        }
+        continue;
+      }
+
+      const obstacleRect = obstacle.kind === 'lessonGate'
+        ? {
+            x: obstacle.x,
+            y: obstacle.y,
+            width: obstacle.width,
+            height: obstacle.height
+          }
+        : insetRect(obstacle, (1 - obstacle.hitScale) / 2, 0.10);
+
+      if (rectsOverlap(playerRect, obstacleRect)) {
+        collide(obstacle);
+        return;
+      }
+    }
+  }
+
+  function collide(obstacle) {
+    if (!state.taskQueue.length) {
+      spawnFinishLine();
+      return;
+    }
+
+    state.activeCollision = obstacle;
+    state.lives = Math.max(0, state.lives - 1);
+    processLifeBonuses();
+    if (state.lives <= 0) {
+      updateHud(0);
+      createCrashParticles();
+      beep(125, .22, 'sawtooth');
+      showGameOver();
+      return;
+    }
+    state.currentTask = state.taskQueue[0];
+    state.mode = 'quiz';
+    createCrashParticles();
+    updateHud(0);
+    beep(125, .22, 'sawtooth');
+    setTimeout(showQuiz, 260);
+  }
+
+  function showQuiz() {
+    const task = state.currentTask;
+    if (!task) return;
+
+    $('#quizLevel').textContent = `${LEVELS[state.level].label}: реши задание, чтобы продолжить`;
+    const question = $('#quizQuestion');
+    question.textContent = task.question || '';
+    question.style.fontFamily = task.font || '';
+    question.style.fontSize = task.fontSize ? `${task.fontSize}px` : '';
+    $('#quizMessage').textContent = '';
+    $('#quizMessage').className = '';
+
+    const media = $('#quizMedia');
+    media.innerHTML = '';
+    if (task.image) {
+      const image = document.createElement('img');
+      image.src = task.image;
+      image.alt = '';
+      media.appendChild(image);
+    }
+    if (task.audio) {
+      const audio = document.createElement('audio');
+      audio.src = task.audio;
+      audio.controls = true;
+      media.appendChild(audio);
+    }
+
+    const answers = $('#answers');
+    const textWrap = $('#textAnswerWrap');
+    answers.innerHTML = '';
+    textWrap.style.display = 'none';
+
+    if (task.type === 'text') {
+      textWrap.style.display = 'grid';
+      const input = $('#textAnswerInput');
+      input.value = '';
+      input.style.fontFamily = task.font || '';
+      input.style.fontSize = task.fontSize ? `${Math.max(16, task.fontSize * .7)}px` : '';
+      setTimeout(() => input.focus(), 80);
+    } else {
+      const taskAnswers = Array.isArray(task.answers) ? task.answers : [];
+      taskAnswers.forEach((answer, index) => {
+        const button = document.createElement('button');
+        button.className = 'answer-btn';
+        button.textContent = answer;
+        button.style.fontFamily = task.font || '';
+        button.style.fontSize = task.fontSize ? `${Math.max(16, task.fontSize * .65)}px` : '';
+        button.addEventListener('click', () => checkAnswer(index, button));
+        answers.appendChild(button);
+      });
+    }
+
+    quizOverlay.classList.remove('hidden');
+  }
+
+  function normalizeAnswer(value) {
+    return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ').replace(',', '.');
+  }
+
+  function checkTextAnswer() {
+    const task = state.currentTask;
+    if (!task) return;
+    const value = normalizeAnswer($('#textAnswerInput').value);
+    const accepted = (task.accepts || []).map(normalizeAnswer);
+    if (!value || !accepted.includes(value)) {
+      $('#quizMessage').textContent = 'Пока неверно. Попробуй ещё раз.';
+      $('#quizMessage').className = 'bad';
+      beep(180, .10, 'square');
+      return;
+    }
+    completeCurrentTask();
+  }
+
+  function checkAnswer(index, button) {
+    const task = state.currentTask;
+    if (!task) return;
+
+    if (index !== Number(task.correct)) {
+      button.classList.remove('wrong');
+      void button.offsetWidth;
+      button.classList.add('wrong');
+      $('#quizMessage').textContent = 'Пока неверно. Попробуй ещё раз.';
+      $('#quizMessage').className = 'bad';
+      beep(180, .10, 'square');
+      return;
+    }
+
+    completeCurrentTask();
+  }
+
+  function completeCurrentTask() {
+    const task = state.currentTask;
+    if (!task) return;
+    $('#quizMessage').textContent = 'Верно! ' + (task.explanation || 'Можно продолжать гонку.');
+    $('#quizMessage').className = 'ok';
+    state.score += state.level === 'hard' ? 60 : state.level === 'medium' ? 45 : 30;
+    processLifeBonuses();
+    state.taskQueue.shift();
+    state.completedTasks += 1;
+    beep(720, .16, 'sine');
+
+    setTimeout(() => {
+      quizOverlay.classList.add('hidden');
+      const hit = state.activeCollision;
+      if (hit) state.obstacles = state.obstacles.filter(obstacle => obstacle !== hit);
+      state.activeCollision = null;
+      state.currentTask = null;
+      state.invulnerable = 2.0;
+      state.lessonTimer = 0;
+      state.spawnTimer = 0;
+      updateHud(0);
+
+      if (!state.taskQueue.length) {
+        state.mode = 'running';
+        state.lastTime = performance.now();
+        spawnFinishLine();
+        return;
+      }
+      if (state.lives <= 0) {
+        showGameOver();
+        return;
+      }
+      state.mode = 'running';
+      state.lastTime = performance.now();
+    }, 850);
+  }
+
+  function finishGame() {
+    if (state.mode !== 'running') return;
+    state.mode = 'won';
+    state.score += 200;
+    processLifeBonuses();
+    $('#winScore').textContent = String(state.score);
+    $('#winDistance').textContent = `${Math.floor(state.distance)} м`;
+    $('#winLives').textContent = String(state.lives);
+    updateHud(0);
+    beep(980, .20, 'sine');
+    setTimeout(() => beep(1240, .28, 'sine'), 180);
+    winOverlay.classList.remove('hidden');
+  }
+
+  function showGameOver() {
+    state.mode = 'gameover';
+    $('#loseScore').textContent = String(state.score);
+    $('#loseTasks').textContent = `${state.completedTasks}/${state.totalTasks}`;
+    $('#loseDistance').textContent = `${Math.floor(state.distance)} м`;
+    gameOverOverlay.classList.remove('hidden');
+  }
+
+  function createCrashParticles() {
+    const centerX = state.player.x + state.player.width / 2;
+    const centerY = state.player.y + state.player.height * .25;
+
+    for (let index = 0; index < 22; index++) {
+      state.particles.push({
+        type: 'crash',
+        x: centerX,
+        y: centerY,
+        vx: (Math.random() - .5) * 280,
+        vy: (Math.random() - .7) * 250,
+        life: .55 + Math.random() * .45,
+        size: 3 + Math.random() * 8
+      });
+    }
+  }
+
+  function createCollectParticles(x, y) {
+    for (let index = 0; index < 14; index++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 45 + Math.random() * 120;
+      state.particles.push({
+        type: 'collect',
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: .35 + Math.random() * .35,
+        size: 2 + Math.random() * 5
+      });
+    }
+  }
+
+  function updateParticles(dt) {
+    for (const particle of state.particles) {
+      particle.life -= dt;
+      if (particle.type === 'crash') {
+        particle.vy += 500 * dt;
+      }
+      particle.x += particle.vx * dt;
+      particle.y += particle.vy * dt;
+    }
+
+    state.particles = state.particles.filter(particle => particle.life > 0);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, state.W, state.H);
+    drawRoadAndScenery();
+    drawCollectibles();
+    drawObstacles();
+    drawPlayer();
+    drawParticles();
+
+    if (state.mode === 'menu') {
+      ctx.fillStyle = 'rgba(3,8,15,.18)';
+      ctx.fillRect(0, 0, state.W, state.H);
+    }
+  }
+
+  function drawRoadAndScenery() {
+    const { left, right, laneWidth, laneCount } = laneData();
+
+    drawSideRepeat(loaded.sideLeft, 0, left);
+    drawSideRepeat(loaded.sideRight, right, state.W - right);
+
+    ctx.fillStyle = '#c89955';
+    ctx.fillRect(left - 11, 0, 11, state.H);
+    ctx.fillRect(right, 0, 11, state.H);
+
+    const gradient = ctx.createLinearGradient(left, 0, right, 0);
+    gradient.addColorStop(0, '#343b49');
+    gradient.addColorStop(.5, '#2c3340');
+    gradient.addColorStop(1, '#343b49');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(left, 0, right - left, state.H);
+
+    ctx.globalAlpha = .10;
+    ctx.strokeStyle = '#768090';
+    ctx.lineWidth = 1;
+    for (let x = left + 18; x < right; x += 36) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + Math.sin(x) * 4, state.H);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    drawCurbs(left - 10, 0, 10, state.H);
+    drawCurbs(right, 0, 10, state.H);
+
+    ctx.strokeStyle = '#f8fbff';
+    ctx.lineWidth = Math.max(3, state.W * .0038);
+    ctx.beginPath();
+    ctx.moveTo(left + 10, 0);
+    ctx.lineTo(left + 10, state.H);
+    ctx.moveTo(right - 10, 0);
+    ctx.lineTo(right - 10, state.H);
+    ctx.stroke();
+
+    const dash = Math.max(34, state.H * .065);
+    const gap = Math.max(26, state.H * .050);
+    const period = dash + gap;
+    const offset = state.sideOffset % period;
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(3, state.W * .0045);
+    ctx.setLineDash([dash, gap]);
+    ctx.lineDashOffset = offset;
+
+    for (let index = 1; index < laneCount; index++) {
+      const x = left + laneWidth * index;
+      ctx.beginPath();
+      ctx.moveTo(x, -period);
+      ctx.lineTo(x, state.H + period);
+      ctx.stroke();
+    }
+
+    ctx.setLineDash([]);
+  }
+
+  function drawSideRepeat(image, x, width) {
+    if (!image) return;
+
+    const drawHeight = width * (image.naturalHeight / image.naturalWidth);
+    const period = drawHeight * 2;
+    const offset = state.sideOffset % period;
+    const firstIndex = Math.floor(offset / drawHeight) - 2;
+    const localOffset = offset % drawHeight;
+
+    for (
+      let index = firstIndex;
+      index < firstIndex + Math.ceil(state.H / drawHeight) + 6;
+      index++
+    ) {
+      const y = (index - firstIndex - 2) * drawHeight - localOffset;
+      const flipped = Math.abs(index) % 2 === 1;
+
+      if (!flipped) {
+        ctx.drawImage(image, x, y, width, drawHeight);
+      } else {
+        ctx.save();
+        ctx.translate(x, y + drawHeight);
+        ctx.scale(1, -1);
+        ctx.drawImage(image, 0, 0, width, drawHeight);
+        ctx.restore();
+      }
+    }
+  }
+
+  function drawCurbs(x, y, width, height) {
+    const blockHeight = Math.max(28, state.H * .055);
+    const offset = state.sideOffset % blockHeight;
+
+    for (
+      let yy = y - blockHeight + offset, index = 0;
+      yy < height;
+      yy += blockHeight, index++
+    ) {
+      ctx.fillStyle = index % 2 ? '#626b76' : '#f6f7f8';
+      ctx.fillRect(x, yy, width, blockHeight + 1);
+    }
+  }
+
+  function drawCollectibles() {
+    for (const item of state.collectibles) {
+      const radius = item.radius * (1 + Math.sin(item.pulse) * .08);
+
+      ctx.save();
+      ctx.translate(item.x, item.y);
+      ctx.rotate(item.rotation);
+      ctx.shadowColor = '#ffd84a';
+      ctx.shadowBlur = radius * .9;
+      drawStar(0, 0, 5, radius, radius * .48);
+      ctx.fillStyle = '#ffd84a';
+      ctx.fill();
+      ctx.lineWidth = Math.max(2, radius * .10);
+      ctx.strokeStyle = '#fff1a0';
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawStar(centerX, centerY, spikes, outerRadius, innerRadius) {
+    let rotation = Math.PI / 2 * 3;
+    const step = Math.PI / spikes;
+
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY - outerRadius);
+
+    for (let index = 0; index < spikes; index++) {
+      ctx.lineTo(
+        centerX + Math.cos(rotation) * outerRadius,
+        centerY + Math.sin(rotation) * outerRadius
+      );
+      rotation += step;
+      ctx.lineTo(
+        centerX + Math.cos(rotation) * innerRadius,
+        centerY + Math.sin(rotation) * innerRadius
+      );
+      rotation += step;
+    }
+
+    ctx.lineTo(centerX, centerY - outerRadius);
+    ctx.closePath();
+  }
+
+  function drawObstacles() {
+    for (const obstacle of state.obstacles) {
+      if (obstacle.kind === 'lessonGate') {
+        for (const car of obstacle.gateCars) {
+          drawRotatedImage(
+            car.image,
+            car.centerX - car.width / 2,
+            obstacle.y + car.offsetY,
+            car.width,
+            car.height,
+            car.rotation || 0
+          );
+        }
+        continue;
+      }
+
+      if (obstacle.kind === 'finish') {
+        drawFinishLine(obstacle);
+        continue;
+      }
+
+      drawRotatedImage(
+        obstacle.image,
+        obstacle.x,
+        obstacle.y,
+        obstacle.width,
+        obstacle.height,
+        obstacle.rotation || 0
+      );
+    }
+  }
+
+  function drawFinishLine(finish) {
+    const rows = 2;
+    const columns = 14;
+    const cellWidth = finish.width / columns;
+    const cellHeight = finish.height / rows;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.4)';
+    ctx.shadowBlur = 12;
+
+    for (let row = 0; row < rows; row++) {
+      for (let column = 0; column < columns; column++) {
+        ctx.fillStyle = (row + column) % 2 === 0 ? '#ffffff' : '#111111';
+        ctx.fillRect(
+          finish.x + column * cellWidth,
+          finish.y + row * cellHeight,
+          cellWidth + 1,
+          cellHeight + 1
+        );
+      }
+    }
+
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(8, 18, 32, .90)';
+    const bannerWidth = Math.min(260, finish.width * .62);
+    const bannerHeight = 48;
+    const bannerX = finish.x + finish.width / 2 - bannerWidth / 2;
+    const bannerY = finish.y - bannerHeight - 12;
+    roundedRect(bannerX, bannerY, bannerWidth, bannerHeight, 14);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 ${Math.max(22, state.H * .035)}px system-ui`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('ФИНИШ', finish.x + finish.width / 2, bannerY + bannerHeight / 2);
+    ctx.restore();
+  }
+
+  function roundedRect(x, y, width, height, radius) {
+    const safeRadius = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + safeRadius, y);
+    ctx.arcTo(x + width, y, x + width, y + height, safeRadius);
+    ctx.arcTo(x + width, y + height, x, y + height, safeRadius);
+    ctx.arcTo(x, y + height, x, y, safeRadius);
+    ctx.arcTo(x, y, x + width, y, safeRadius);
+    ctx.closePath();
+  }
+
+  function drawPlayer() {
+    const player = state.player;
+    if (!player.image) return;
+
+    if (
+      state.invulnerable > 0 &&
+      Math.floor(state.invulnerable * 9) % 2 === 0
+    ) {
+      ctx.globalAlpha = .35;
+    }
+
+    drawRotatedImage(
+      player.image,
+      player.x,
+      player.y,
+      player.width,
+      player.height,
+      player.rotation || 0
+    );
+
+    ctx.globalAlpha = 1;
+  }
+
+  function drawRotatedImage(image, x, y, width, height, rotation = 0) {
+    if (!rotation) {
+      ctx.drawImage(image, x, y, width, height);
+      return;
+    }
+
+    ctx.save();
+    ctx.translate(x + width / 2, y + height / 2);
+    ctx.rotate(rotation);
+    ctx.drawImage(image, -width / 2, -height / 2, width, height);
+    ctx.restore();
+  }
+
+  function drawParticles() {
+    for (const particle of state.particles) {
+      ctx.globalAlpha = Math.max(0, particle.life);
+      ctx.fillStyle = particle.type === 'collect'
+        ? '#ffe671'
+        : (Math.random() > .5 ? '#ffd54a' : '#ff674f');
+      ctx.fillRect(particle.x, particle.y, particle.size, particle.size);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function updateHud(speed) {
+    $('#distanceValue').textContent = `${Math.floor(state.distance)} м`;
+    $('#scoreValue').textContent = String(state.score);
+    const lifeProgress = state.score % LIFE_SCORE_STEP;
+    $('#lifeProgressValue').textContent = state.lifeBonusBank > 0
+      ? `готово ×${state.lifeBonusBank}`
+      : `${lifeProgress}/${LIFE_SCORE_STEP}`;
+    $('#tasksValue').textContent = `${state.completedTasks}/${state.totalTasks}`;
+    $('#speedValue').textContent = speed ? `${Math.round(speed * .46)} км/ч` : '0';
+
+    const full = '♥ '.repeat(state.lives);
+    const empty = '♡ '.repeat(MAX_LIVES - state.lives);
+    $('#livesValue').textContent = (full + empty).trim();
+  }
+
+  function showToast(text) {
+    toastEl.textContent = text;
+    toastEl.classList.add('show');
+    clearTimeout(state.toastTimer);
+    state.toastTimer = setTimeout(() => {
+      toastEl.classList.remove('show');
+    }, 1300);
+  }
+
+  function frame(time) {
+    const rawDt = state.lastTime ? (time - state.lastTime) / 1000 : 0;
+    const dt = Math.min(.04, Math.max(0, rawDt));
+    state.lastTime = time;
+    update(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('keydown', event => {
+    if (['ArrowLeft', 'KeyA'].includes(event.code)) state.keys.left = true;
+    if (['ArrowRight', 'KeyD'].includes(event.code)) state.keys.right = true;
+    if (event.code === 'Escape' && ['running', 'paused'].includes(state.mode)) {
+      togglePause();
+    }
+  });
+
+  window.addEventListener('keyup', event => {
+    if (['ArrowLeft', 'KeyA'].includes(event.code)) state.keys.left = false;
+    if (['ArrowRight', 'KeyD'].includes(event.code)) state.keys.right = false;
+  });
+
+  stage.addEventListener('pointerdown', event => {
+    if (state.mode !== 'running') return;
+    stage.setPointerCapture?.(event.pointerId);
+    const rect = stage.getBoundingClientRect();
+    state.dragX = event.clientX - rect.left;
+  });
+
+  stage.addEventListener('pointermove', event => {
+    if (state.dragX === null || state.mode !== 'running') return;
+    const rect = stage.getBoundingClientRect();
+    state.dragX = event.clientX - rect.left;
+  });
+
+  const endDrag = () => { state.dragX = null; };
+  stage.addEventListener('pointerup', endDrag);
+  stage.addEventListener('pointercancel', endDrag);
+
+  function bindHold(button, key) {
+    button.addEventListener('pointerdown', event => {
+      event.preventDefault();
+      state.keys[key] = true;
+    });
+    button.addEventListener('pointerup', () => { state.keys[key] = false; });
+    button.addEventListener('pointercancel', () => { state.keys[key] = false; });
+    button.addEventListener('pointerleave', () => { state.keys[key] = false; });
+  }
+
+  bindHold($('#leftButton'), 'left');
+  bindHold($('#rightButton'), 'right');
+
+  $('#difficultyRow').addEventListener('click', event => {
+    const button = event.target.closest('[data-level]');
+    if (!button) return;
+    state.level = button.dataset.level;
+    document.querySelectorAll('.difficulty-btn').forEach(item => {
+      item.classList.toggle('selected', item === button);
+    });
+  });
+
+  $('#startButton').addEventListener('click', startGame);
+  $('#pauseButton').addEventListener('click', togglePause);
+  $('#resumeButton').addEventListener('click', togglePause);
+  $('#homeButton').addEventListener('click', endToMenu);
+  $('#winRestartButton').addEventListener('click', startGame);
+  $('#winHomeButton').addEventListener('click', endToMenu);
+  $('#loseRestartButton').addEventListener('click', startGame);
+  $('#loseHomeButton').addEventListener('click', endToMenu);
+  $('#textAnswerButton').addEventListener('click', checkTextAnswer);
+  $('#textAnswerInput').addEventListener('keydown', event => { if (event.key === 'Enter') checkTextAnswer(); });
+
+  window.addEventListener('resize', resize);
+  new ResizeObserver(resize).observe(stage);
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function rectsOverlap(a, b) {
+    return (
+      a.x < b.x + b.width &&
+      a.x + a.width > b.x &&
+      a.y < b.y + b.height &&
+      a.y + a.height > b.y
+    );
+  }
+
+  function insetRect(rect, xPart, yPart) {
+    const dx = rect.width * xPart;
+    const dy = rect.height * yPart;
+    return {
+      x: rect.x + dx,
+      y: rect.y + dy,
+      width: rect.width - dx * 2,
+      height: rect.height - dy * 2
+    };
+  }
+
+  function nearestLaneIndex(x, centers) {
+    let bestIndex = 0;
+    let bestDistance = Infinity;
+
+    centers.forEach((center, index) => {
+      const distance = Math.abs(center - x);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
+    });
+
+    return bestIndex;
+  }
+
+  function shuffle(array) {
+    for (let index = array.length - 1; index > 0; index--) {
+      const randomIndex = Math.floor(Math.random() * (index + 1));
+      [array[index], array[randomIndex]] = [array[randomIndex], array[index]];
+    }
+    return array;
+  }
+
+  let audioContext = null;
+
+  function beep(frequency = 440, duration = .1, type = 'sine') {
+    try {
+      audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.type = type;
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(.045, audioContext.currentTime);
+      gain.gain.exponentialRampToValueAtTime(.0001, audioContext.currentTime + duration);
+      oscillator.connect(gain).connect(audioContext.destination);
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + duration);
+    } catch {
+      // Звук необязателен.
+    }
+  }
+
+  async function init() {
+    document.title = GAME_CONFIG.title || 'Учебная гонка';
+    $('#gameTitle').textContent = '🏁 ' + (GAME_CONFIG.title || 'Учебная гонка');
+    $('#lifeRulePoints').textContent = String(LIFE_SCORE_STEP);
+    const intro = GAME_CONFIG.instruction || 'Выбери машину и уровень. Собирай звёзды, уклоняйся от транспорта и решай задания.';
+    $('#gameInstruction').innerHTML = `${intro}<br><b>Каждые ${LIFE_SCORE_STEP} очков</b> восстанавливают одну потерянную жизнь. Если все сердца заполнены, бонус сохраняется до первого столкновения. После выполнения всех заданий появится финиш.`;
+    buildCarMenu();
+
+    try {
+      await preload();
+      resize();
+      updateHud(0);
+      loading.style.display = 'none';
+      requestAnimationFrame(frame);
+    } catch (error) {
+      loading.innerHTML = `
+        <div style="max-width:620px;padding:24px">
+          <h2>Не удалось запустить игру</h2>
+          <p>${error.message}</p>
+          <p>Проверь, что папка <b>assets</b> полностью загружена рядом с файлом game.html.</p>
+        </div>
+      `;
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
