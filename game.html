@@ -493,7 +493,7 @@
             <div class="car-grid" id="carGrid"></div>
           </div>
 
-          <div>
+          <div id="difficultySection">
             <h3 class="section-title">2. Выбери сложность</h3>
             <div class="difficulty-row" id="difficultyRow">
               <button class="difficulty-btn selected" data-level="easy">Лёгкий</button>
@@ -597,6 +597,25 @@
   }
 
   const GAME_CONFIG = readGameConfig();
+
+
+  const DIFFICULTY_MODE = GAME_CONFIG.difficultyMode === 'teacher' ? 'teacher' : 'student';
+  const FIXED_LEVEL = ['easy', 'medium', 'hard'].includes(GAME_CONFIG.fixedLevel)
+    ? GAME_CONFIG.fixedLevel
+    : 'easy';
+
+  const INTERFACE_THEMES = {
+    classic: { accent: '#ffd54a', accent2: '#46d6ff', panel: 'rgba(9, 19, 35, .93)' },
+    blue:    { accent: '#60a5fa', accent2: '#22d3ee', panel: 'rgba(8, 24, 50, .94)' },
+    green:   { accent: '#65e5a0', accent2: '#bef264', panel: 'rgba(7, 38, 29, .94)' },
+    purple:  { accent: '#c084fc', accent2: '#f0abfc', panel: 'rgba(36, 18, 59, .94)' },
+    orange:  { accent: '#fb923c', accent2: '#facc15', panel: 'rgba(55, 28, 8, .94)' }
+  };
+
+  const INTERFACE_THEME = INTERFACE_THEMES[GAME_CONFIG.interfaceTheme] || INTERFACE_THEMES.classic;
+  document.documentElement.style.setProperty('--accent', INTERFACE_THEME.accent);
+  document.documentElement.style.setProperty('--accent-2', INTERFACE_THEME.accent2);
+  document.documentElement.style.setProperty('--panel', INTERFACE_THEME.panel);
 
   const ASSETS = {
     roadside: {
@@ -744,7 +763,7 @@
 
   const state = {
     mode: 'menu',
-    level: 'easy',
+    level: DIFFICULTY_MODE === 'teacher' ? FIXED_LEVEL : 'easy',
     selectedCar: PLAYER_OPTIONS[0].id,
     W: 1000,
     H: 562,
@@ -1945,6 +1964,7 @@
   bindHold($('#rightButton'), 'right');
 
   $('#difficultyRow').addEventListener('click', event => {
+    if (DIFFICULTY_MODE !== 'student') return;
     const button = event.target.closest('[data-level]');
     if (!button) return;
     state.level = button.dataset.level;
@@ -2058,9 +2078,20 @@
     document.title = GAME_CONFIG.title || 'Учебная гонка';
     $('#gameTitle').textContent = '🏁 ' + (GAME_CONFIG.title || 'Учебная гонка');
     $('#lifeRulePoints').textContent = String(LIFE_SCORE_STEP);
-    const intro = GAME_CONFIG.instruction || 'Выбери машину и уровень. Собирай звёзды, уклоняйся от транспорта и решай задания.';
+    const intro = GAME_CONFIG.instruction || 'Выбери персонажа. Собирай бонусы, уклоняйся от транспорта и решай задания.';
     $('#gameInstruction').innerHTML = `${intro}<br><b>Каждые ${LIFE_SCORE_STEP} очков</b> восстанавливают одну потерянную жизнь. Если все сердца заполнены, бонус сохраняется до первого столкновения. После выполнения всех заданий появится финиш.`;
     buildCarMenu();
+
+    const difficultySection = $('#difficultySection');
+    if (DIFFICULTY_MODE === 'teacher') {
+      state.level = FIXED_LEVEL;
+      if (difficultySection) difficultySection.style.display = 'none';
+    } else {
+      if (difficultySection) difficultySection.style.display = '';
+      document.querySelectorAll('.difficulty-btn').forEach(item => {
+        item.classList.toggle('selected', item.dataset.level === state.level);
+      });
+    }
 
     try {
       await preload();
