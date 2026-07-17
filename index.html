@@ -109,7 +109,7 @@
         <div class="menu-grid">
           <div>
             <h1>🏁 Учебная гонка</h1>
-            <p>Здесь уже стоит бесшовная дорога: центральный асфальт рисуется кодом, а боковой пейзаж прокручивается непрерывно. Выбери машину и уровень.</p>
+            <p>Выбери машину и уровень сложности. Уклоняйся от транспорта и решай задания после столкновений.</p>
           </div>
           <div>
             <h3 class="section-title">1. Выбери машину</h3>
@@ -174,7 +174,7 @@
         <div id="editorMessage" class="hint" style="margin-top:10px"></div>
       </div>
     </section>
-    <div id="loading"><div><div class="spinner"></div><strong>Загружаю бесшовную дорогу и машины…</strong></div></div>
+    <div id="loading"><div class="spinner" aria-label="Загрузка"></div></div>
   </main>
 </div>
 <script>
@@ -191,14 +191,14 @@
       { id: 'yellow', name: 'Жёлтая',   src: 'assets/cars/player_yellow.png', rotation: 0 },
       { id: 'green',  name: 'Зелёная',  src: 'assets/cars/player_green.png', rotation: 0 },
       { id: 'pickup', name: 'Пикап',    src: 'assets/cars/player_pickup.png', rotation: 0 },
-      { id: 'purple', name: 'Гоночная', src: 'assets/cars/player_purple.png', rotation: Math.PI }
+      { id: 'purple', name: 'Гоночная', src: 'assets/cars/player_purple.png', rotation: 0 }
     ],
     traffic: [
       { id: 'taxi',         src: 'assets/traffic/taxi.png',         scale: 0.72, rotation: 0 },
       { id: 'police',       src: 'assets/traffic/police.png',       scale: 0.72, rotation: 0 },
       { id: 'ambulance',    src: 'assets/traffic/ambulance.png',    scale: 0.78, rotation: 0 },
       { id: 'pickup',       src: 'assets/traffic/pickup.png',       scale: 0.78, rotation: 0 },
-      { id: 'purple_racer', src: 'assets/traffic/purple_racer.png', scale: 0.70, rotation: Math.PI },
+      { id: 'purple_racer', src: 'assets/traffic/purple_racer.png', scale: 0.70, rotation: 0 },
       { id: 'firetruck',    src: 'assets/traffic/firetruck.png',    scale: 0.92, rotation: 0 },
       { id: 'school_bus',   src: 'assets/traffic/school_bus.png',   scale: 0.90, rotation: 0 }
     ]
@@ -592,8 +592,25 @@
   function drawSideRepeat(img, x, width) {
     if (!img) return;
     const drawH = width * (img.naturalHeight / img.naturalWidth);
-    const offset = state.sideOffset % drawH;
-    for (let y = -offset; y < state.H + drawH; y += drawH) ctx.drawImage(img, x, y, width, drawH);
+    const period = drawH * 2;
+    const offset = state.sideOffset % period;
+    const firstIndex = Math.floor(offset / drawH) - 2;
+    const localOffset = offset % drawH;
+
+    for (let index = firstIndex; index < firstIndex + Math.ceil(state.H / drawH) + 6; index++) {
+      const y = (index - firstIndex - 2) * drawH - localOffset;
+      const flipped = Math.abs(index) % 2 === 1;
+
+      if (!flipped) {
+        ctx.drawImage(img, x, y, width, drawH);
+      } else {
+        ctx.save();
+        ctx.translate(x, y + drawH);
+        ctx.scale(1, -1);
+        ctx.drawImage(img, 0, 0, width, drawH);
+        ctx.restore();
+      }
+    }
   }
 
   function drawCurbs(x, y, width, height) {
@@ -696,7 +713,7 @@
   async function init() {
     buildCarMenu();
     try { await preload(); resize(); loading.style.display = 'none'; requestAnimationFrame(frame); }
-    catch (error) { loading.innerHTML = `<div style="max-width:620px;padding:24px"><h2>Не удалось запустить игру</h2><p>${error.message}</p><p>Проверь, что папка <b>assets</b> лежит рядом с файлом index.html.</p></div>`; }
+    catch (error) { loading.innerHTML = `<div style="max-width:620px;padding:24px"><h2>Не удалось запустить игру</h2><p>${error.message}</p><p>Проверь, что папка <b>assets</b> полностью загружена рядом с файлом index.html.</p></div>`; }
   }
   init();
 })();
