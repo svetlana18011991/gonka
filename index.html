@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Race & Learn 🏎️</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+
+        <!-- ===== ЭКРАН 1: ВЫБОР МАШИНЫ ===== -->
+        <div id="screen-select" class="screen active">
+            <h1>🏎️ Race & Learn</h1>
+            <p class="subtitle">Учись и побеждай на трассе!</p>
+
+            <div class="section-title">Выбери машину:</div>
+            <div id="car-selector">
+                <div class="car-option" data-car="0">
+                    <div class="car-preview car-red"></div>
+                    <span>Молния</span>
+                </div>
+                <div class="car-option" data-car="1">
+                    <div class="car-preview car-blue"></div>
+                    <span>Буря</span>
+                </div>
+                <div class="car-option" data-car="2">
+                    <div class="car-preview car-yellow"></div>
+                    <span>Ракета</span>
+                </div>
+            </div>
+
+            <div class="section-title">Выбери уровень:</div>
+            <div id="level-selector">
+                <button class="level-btn" data-level="easy">
+                    🟢<br>Легкий
+                </button>
+                <button class="level-btn" data-level="medium">
+                    🟡<br>Средний
+                </button>
+                <button class="level-btn" data-level="hard">
+                    🔴<br>Сложный
+                </button>
+            </div>
+
+            <button id="start-btn" disabled>🚦 СТАРТ!</button>
+        </div>
+
+        <!-- ===== ЭКРАН 2: ОБРАТНЫЙ ОТСЧЁТ ===== -->
+        <div id="screen-countdown" class="screen">
+            <div id="countdown-number">3</div>
+            <div id="countdown-text">Приготовься!</div>
+        </div>
+
+        <!-- ===== ЭКРАН 3: ИГРА ===== -->
+        <div id="screen-game" class="screen">
+            <div id="hud">
+                <div id="hud-score">⭐ <span id="score-value">0</span></div>
+                <div id="hud-level"></div>
+                <div id="hud-lives"></div>
+            </div>
+            <canvas id="gameCanvas"></canvas>
+            <div id="mobile-controls">
+                <button id="btn-left">◀</button>
+                <button id="btn-right">▶</button>
+            </div>
+        </div>
+
+        <!-- ===== ЭКРАН 4: ВОПРОС ===== -->
+        <div id="screen-quiz" class="screen">
+            <div id="quiz-container">
+                <div id="quiz-header">
+                    <span id="quiz-icon">💥</span>
+                    <h2>Авария! Ответь на вопрос</h2>
+                </div>
+                <div id="quiz-timer-bar">
+                    <div id="quiz-timer-fill"></div>
+                </div>
+                <div id="quiz-timer-text">⏰ <span id="timer-count">30</span> сек</div>
+                <div id="quiz-question-box">
+                    <p id="quiz-question"></p>
+                </div>
+                <div id="quiz-answers"></div>
+                <div id="quiz-result" class="hidden">
+                    <span id="quiz-result-icon"></span>
+                    <p id="quiz-result-text"></p>
+                    <button id="quiz-continue-btn">Продолжить гонку! 🏎️</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== ЭКРАН 5: ФИНИШ ===== -->
+        <div id="screen-finish" class="screen">
+            <div id="finish-container">
+                <div id="finish-trophy">🏆</div>
+                <h1>Финиш!</h1>
+                <div id="finish-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Очки</span>
+                        <span class="stat-value" id="finish-score">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Правильных ответов</span>
+                        <span class="stat-value" id="finish-correct">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Уровень</span>
+                        <span class="stat-value" id="finish-level">-</span>
+                    </div>
+                </div>
+                <button id="play-again-btn">🔄 Играть снова</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Скрипты в правильном порядке -->
+    <script src="js/levels.js"></script>
+    <script src="js/quiz.js"></script>
+    <script src="js/car.js"></script>
+    <script src="js/obstacle.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
