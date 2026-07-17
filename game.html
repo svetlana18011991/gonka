@@ -609,18 +609,82 @@
       { id: 'yellow', name: 'Жёлтая',   src: 'assets/cars/player_yellow.png', rotation: 0 },
       { id: 'green',  name: 'Зелёная',  src: 'assets/cars/player_green.png', rotation: 0 },
       { id: 'pickup', name: 'Пикап',    src: 'assets/cars/player_pickup.png', rotation: 0 },
-      { id: 'purple', name: 'Гоночная', src: 'assets/cars/player_purple.png', rotation: 0 }
+      { id: 'purple', name: 'Гоночная', src: 'assets/cars/player_purple.png', rotation: Math.PI }
     ],
     traffic: [
       { id: 'taxi',         src: 'assets/traffic/taxi.png',         scale: 0.72, rotation: 0 },
       { id: 'police',       src: 'assets/traffic/police.png',       scale: 0.72, rotation: 0 },
       { id: 'ambulance',    src: 'assets/traffic/ambulance.png',    scale: 0.78, rotation: 0 },
       { id: 'pickup',       src: 'assets/traffic/pickup.png',       scale: 0.78, rotation: 0 },
-      { id: 'purple_racer', src: 'assets/traffic/purple_racer.png', scale: 0.70, rotation: 0 },
+      { id: 'purple_racer', src: 'assets/traffic/purple_racer.png', scale: 0.70, rotation: Math.PI },
       { id: 'firetruck',    src: 'assets/traffic/firetruck.png',    scale: 0.92, rotation: 0 },
       { id: 'school_bus',   src: 'assets/traffic/school_bus.png',   scale: 0.90, rotation: 0 }
     ]
   };
+
+  const ENVIRONMENTS = {
+    meadow: {
+      id: 'meadow',
+      name: 'Зелёный парк',
+      left: 'assets/roadside/left_strip.png',
+      right: 'assets/roadside/right_strip.png'
+    },
+    desert: {
+      id: 'desert',
+      name: 'Пустыня',
+      left: 'assets/environments/desert.png',
+      right: 'assets/environments/desert.png'
+    },
+    city: {
+      id: 'city',
+      name: 'Город',
+      left: 'assets/environments/city.png',
+      right: 'assets/environments/city.png'
+    },
+    winter: {
+      id: 'winter',
+      name: 'Зима',
+      left: 'assets/environments/winter.png',
+      right: 'assets/environments/winter.png'
+    },
+    autumn: {
+      id: 'autumn',
+      name: 'Осенний лес',
+      left: 'assets/environments/autumn.png',
+      right: 'assets/environments/autumn.png'
+    },
+    coast: {
+      id: 'coast',
+      name: 'Побережье',
+      left: 'assets/environments/coast.png',
+      right: 'assets/environments/coast.png'
+    }
+  };
+
+  const DEFAULT_PLAYER_IDS = ASSETS.players.map(item => item.id);
+  const ENABLED_PLAYER_IDS = Array.isArray(GAME_CONFIG.enabledPlayerIds) && GAME_CONFIG.enabledPlayerIds.length
+    ? GAME_CONFIG.enabledPlayerIds
+    : DEFAULT_PLAYER_IDS;
+  const CUSTOM_PLAYERS = Array.isArray(GAME_CONFIG.customPlayers)
+    ? GAME_CONFIG.customPlayers.filter(item => item && item.src)
+    : [];
+  const PLAYER_OPTIONS = [
+    ...ASSETS.players.filter(item => ENABLED_PLAYER_IDS.includes(item.id)),
+    ...CUSTOM_PLAYERS.map((item, index) => ({
+      id: item.id || `custom_${index}`,
+      name: item.name || `Персонаж ${index + 1}`,
+      src: item.src,
+      rotation: Number(item.rotation) || 0,
+      custom: true
+    }))
+  ];
+
+  if (!PLAYER_OPTIONS.length) PLAYER_OPTIONS.push(ASSETS.players[0]);
+
+  const ENVIRONMENT_ID = GAME_CONFIG.environmentId || 'meadow';
+  const ENVIRONMENT = GAME_CONFIG.customEnvironment
+    ? { id: 'custom', name: 'Своя тема', left: GAME_CONFIG.customEnvironment, right: GAME_CONFIG.customEnvironment }
+    : (ENVIRONMENTS[ENVIRONMENT_ID] || ENVIRONMENTS.meadow);
 
   const DEFAULT_TASKS = [
     { level: 'easy', question: '7 + 5 = ?', answers: ['10', '12', '14'], correct: 1, explanation: '7 + 5 = 12' },
@@ -674,13 +738,14 @@
     sideLeft: null,
     sideRight: null,
     players: new Map(),
-    traffic: new Map()
+    traffic: new Map(),
+    bonus: null
   };
 
   const state = {
     mode: 'menu',
     level: 'easy',
-    selectedCar: 'red',
+    selectedCar: PLAYER_OPTIONS[0].id,
     W: 1000,
     H: 562,
     dpr: 1,
@@ -710,6 +775,7 @@
     forceMode: GAME_CONFIG.forceMode || 'on',
     speedMultiplier: Number(GAME_CONFIG.speedMultiplier || 1),
     toastTimer: null,
+    draftPreview: false,
     player: {
       x: 0,
       y: 0,
@@ -722,7 +788,7 @@
   };
 
   function loadTasks() {
-    if (Array.isArray(GAME_CONFIG.tasks) && GAME_CONFIG.tasks.length) {
+    if (Array.isArray(GAME_CONFIG.tasks)) {
       return structuredClone(GAME_CONFIG.tasks);
     }
     return structuredClone(DEFAULT_TASKS);
@@ -738,20 +804,24 @@
   }
 
   async function preload() {
-    loaded.sideLeft = await loadImage(ASSETS.roadside.left);
-    loaded.sideRight = await loadImage(ASSETS.roadside.right);
-    for (const car of ASSETS.players) {
-      loaded.players.set(car.id, await loadImage(car.src));
+    loaded.sideLeft = await loadImage(ENVIRONMENT.left);
+    loaded.sideRight = await loadImage(ENVIRONMENT.right);
+    for (const player of PLAYER_OPTIONS) {
+      loaded.players.set(player.id, await loadImage(player.src));
     }
     for (const car of ASSETS.traffic) {
       loaded.traffic.set(car.id, await loadImage(car.src));
+    }
+    if (GAME_CONFIG.bonusImage) {
+      try { loaded.bonus = await loadImage(GAME_CONFIG.bonusImage); }
+      catch (error) { console.warn(error.message); }
     }
   }
 
   function buildCarMenu() {
     const grid = $('#carGrid');
     grid.innerHTML = '';
-    for (const car of ASSETS.players) {
+    for (const car of PLAYER_OPTIONS) {
       const btn = document.createElement('button');
       btn.className = 'car-card' + (car.id === state.selectedCar ? ' selected' : '');
       btn.dataset.car = car.id;
@@ -795,7 +865,7 @@
   function placePlayer(forceCenter = false) {
     const lanes = laneData();
     const image = loaded.players.get(state.selectedCar);
-    const spec = ASSETS.players.find(car => car.id === state.selectedCar);
+    const spec = PLAYER_OPTIONS.find(car => car.id === state.selectedCar);
     state.player.image = image || state.player.image;
     state.player.rotation = spec?.rotation || 0;
 
@@ -817,9 +887,7 @@
   }
 
   function prepareTaskQueue() {
-    const levelTasks = state.tasks.filter(task => task.level === state.level);
-    const pool = levelTasks.length ? levelTasks : state.tasks;
-    state.taskQueue = pool.map(task => structuredClone(task));
+    state.taskQueue = state.tasks.map(task => structuredClone(task));
     state.completedTasks = 0;
     state.totalTasks = state.taskQueue.length;
   }
@@ -847,6 +915,7 @@
   }
 
   function startGame() {
+    if (!state.tasks.length) { showToast('В редакторе пока нет вопросов'); return; }
     resetGame();
     menuOverlay.classList.add('hidden');
     pauseOverlay.classList.add('hidden');
@@ -868,9 +937,6 @@
     state.mode = 'running';
     state.lastTime = performance.now();
 
-    if (!state.totalTasks) {
-      spawnFinishLine();
-    }
   }
 
   function endToMenu() {
@@ -1311,7 +1377,7 @@
     const task = state.currentTask;
     if (!task) return;
 
-    $('#quizLevel').textContent = `${LEVELS[state.level].label}: реши задание, чтобы продолжить`;
+    $('#quizLevel').textContent = state.draftPreview ? 'Черновик вопроса — не сохранён' : 'Реши задание, чтобы продолжить';
     const question = $('#quizQuestion');
     question.textContent = task.question || '';
     question.style.fontFamily = task.font || '';
@@ -1400,8 +1466,12 @@
   function completeCurrentTask() {
     const task = state.currentTask;
     if (!task) return;
-    $('#quizMessage').textContent = 'Верно! ' + (task.explanation || 'Можно продолжать гонку.');
+    $('#quizMessage').textContent = 'Верно! ' + (task.explanation || 'Ответ принят.');
     $('#quizMessage').className = 'ok';
+    if (state.draftPreview) {
+      beep(720, .16, 'sine');
+      return;
+    }
     state.score += state.level === 'hard' ? 60 : state.level === 'medium' ? 45 : 30;
     processLifeBonuses();
     state.taskQueue.shift();
@@ -1623,18 +1693,24 @@
   function drawCollectibles() {
     for (const item of state.collectibles) {
       const radius = item.radius * (1 + Math.sin(item.pulse) * .08);
-
       ctx.save();
       ctx.translate(item.x, item.y);
       ctx.rotate(item.rotation);
       ctx.shadowColor = '#ffd84a';
       ctx.shadowBlur = radius * .9;
-      drawStar(0, 0, 5, radius, radius * .48);
-      ctx.fillStyle = '#ffd84a';
-      ctx.fill();
-      ctx.lineWidth = Math.max(2, radius * .10);
-      ctx.strokeStyle = '#fff1a0';
-      ctx.stroke();
+      if (loaded.bonus) {
+        const ratio = loaded.bonus.naturalHeight / loaded.bonus.naturalWidth;
+        const width = radius * 2.15;
+        const height = Math.min(radius * 2.3, width * ratio);
+        ctx.drawImage(loaded.bonus, -width / 2, -height / 2, width, height);
+      } else {
+        drawStar(0, 0, 5, radius, radius * .48);
+        ctx.fillStyle = '#ffd84a';
+        ctx.fill();
+        ctx.lineWidth = Math.max(2, radius * .10);
+        ctx.strokeStyle = '#fff1a0';
+        ctx.stroke();
+      }
       ctx.restore();
     }
   }
@@ -1961,6 +2037,23 @@
     }
   }
 
+  function openDraftPreview(task) {
+    state.draftPreview = true;
+    state.mode = 'quiz';
+    state.currentTask = structuredClone(task);
+    state.score = 0;
+    state.lives = MAX_LIVES;
+    state.completedTasks = 0;
+    state.totalTasks = Array.isArray(GAME_CONFIG.tasks) ? GAME_CONFIG.tasks.length : 0;
+    menuOverlay.classList.add('hidden');
+    pauseOverlay.classList.add('hidden');
+    winOverlay.classList.add('hidden');
+    gameOverOverlay.classList.add('hidden');
+    placePlayer(true);
+    showQuiz();
+    updateHud(0);
+  }
+
   async function init() {
     document.title = GAME_CONFIG.title || 'Учебная гонка';
     $('#gameTitle').textContent = '🏁 ' + (GAME_CONFIG.title || 'Учебная гонка');
@@ -1974,6 +2067,12 @@
       resize();
       updateHud(0);
       loading.style.display = 'none';
+      const startButton = $('#startButton');
+      if (!state.tasks.length && startButton) {
+        startButton.disabled = true;
+        startButton.textContent = 'Сначала добавь вопросы';
+      }
+      if (GAME_CONFIG.previewTask) openDraftPreview(GAME_CONFIG.previewTask);
       requestAnimationFrame(frame);
     } catch (error) {
       loading.innerHTML = `
