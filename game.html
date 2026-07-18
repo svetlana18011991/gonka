@@ -25,6 +25,8 @@
       --danger: #ff5d6c;
       --text: #f6f8ff;
       --muted: #b7c1d8;
+      --quiz-neon: #46d6ff;
+      --question-plate: #101b31;
     }
 
     * { box-sizing: border-box; }
@@ -323,6 +325,18 @@
     #quizPanel {
       width: min(620px, 100%);
       flex: 0 1 620px;
+      border: 2px solid rgba(255,255,255,.17);
+      transition: border-color .2s ease, box-shadow .2s ease;
+    }
+
+    #quizPanel.quiz-neon {
+      border-color: var(--quiz-neon);
+      box-shadow:
+        0 0 8px var(--quiz-neon),
+        0 0 24px color-mix(in srgb, var(--quiz-neon) 72%, transparent),
+        0 0 52px color-mix(in srgb, var(--quiz-neon) 38%, transparent),
+        inset 0 0 20px color-mix(in srgb, var(--quiz-neon) 12%, transparent),
+        0 30px 100px rgba(0,0,0,.52);
     }
 
     .quiz-top-row {
@@ -426,7 +440,17 @@
       .scratch-body { min-height: 280px; }
     }
 
-    #quizQuestion { font-size: clamp(25px, 5vw, 42px); line-height: 1.2; margin: 18px 0; }
+    #quizQuestion {
+      font-size: clamp(25px, 5vw, 42px);
+      line-height: 1.2;
+      margin: 18px 0;
+      padding: 16px 18px;
+      border-radius: 16px;
+      background: var(--question-plate);
+      border: 1px solid rgba(255,255,255,.16);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 10px 28px rgba(0,0,0,.22);
+      overflow-wrap: anywhere;
+    }
     #quizMedia { text-align:center; margin: 8px 0 14px; }
     #quizMedia img { display:block; max-width:min(420px, 92%); max-height:230px; object-fit:contain; margin:0 auto 10px; border-radius:16px; }
     #quizMedia audio { width:min(460px, 94%); }
@@ -771,6 +795,16 @@
   rootStyle.setProperty('--button-text', INTERFACE_THEME.buttonText);
   rootStyle.setProperty('--accent-shadow', INTERFACE_THEME.shadow);
 
+  const QUESTION_NEON_ENABLED = GAME_CONFIG.questionNeonEnabled !== false;
+  const QUESTION_NEON_COLOR = /^#[0-9a-f]{6}$/i.test(GAME_CONFIG.questionNeonColor || '')
+    ? GAME_CONFIG.questionNeonColor
+    : '#46d6ff';
+  const QUESTION_PLATE_COLOR = /^#[0-9a-f]{6}$/i.test(GAME_CONFIG.questionPlateColor || '')
+    ? GAME_CONFIG.questionPlateColor
+    : '#101b31';
+  rootStyle.setProperty('--quiz-neon', QUESTION_NEON_COLOR);
+  rootStyle.setProperty('--question-plate', QUESTION_PLATE_COLOR);
+
   const ASSETS = {
     roadside: {
       left: 'assets/roadside/left_strip.png',
@@ -789,7 +823,7 @@
       { id: 'police',       src: 'assets/traffic/police.png',       scale: 0.72, rotation: 0 },
       { id: 'ambulance',    src: 'assets/traffic/ambulance.png',    scale: 0.78, rotation: 0 },
       { id: 'pickup',       src: 'assets/traffic/pickup.png',       scale: 0.78, rotation: 0 },
-      { id: 'purple_racer', src: 'assets/traffic/purple_racer.png', scale: 0.70, rotation: 0 },
+      { id: 'purple_racer', src: 'assets/traffic/turquoise_racer.png', scale: 0.70, rotation: 0 },
       { id: 'firetruck',    src: 'assets/traffic/firetruck.png',    scale: 0.92, rotation: 0 },
       { id: 'school_bus',   src: 'assets/traffic/school_bus.png',   scale: 0.90, rotation: 0 }
     ]
@@ -2374,6 +2408,7 @@
   }
 
   async function init() {
+    document.getElementById('quizPanel')?.classList.toggle('quiz-neon', QUESTION_NEON_ENABLED);
     document.title = GAME_CONFIG.title || 'Учебная гонка';
     $('#gameTitle').textContent = '🏁 ' + (GAME_CONFIG.title || 'Учебная гонка');
     $('#lifeRulePoints').textContent = String(LIFE_SCORE_STEP);
