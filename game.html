@@ -8,6 +8,16 @@
     :root {
       color-scheme: dark;
       --panel: rgba(9, 19, 35, .93);
+      --panel-soft: rgba(14, 28, 47, .88);
+      --hud-bg: rgba(6, 15, 28, .84);
+      --overlay-bg: rgba(3, 8, 15, .60);
+      --selected-bg: rgba(255, 213, 74, .16);
+      --app-top: #10243f;
+      --app-bottom: #050b14;
+      --button-top: #ffe46d;
+      --button-bottom: #ffbf32;
+      --button-text: #332000;
+      --accent-shadow: rgba(255,188,45,.30);
       --line: rgba(255,255,255,.15);
       --accent: #ffd54a;
       --accent-2: #46d6ff;
@@ -35,8 +45,8 @@
       display: grid;
       place-items: center;
       background:
-        radial-gradient(circle at 50% 15%, rgba(50,117,194,.28), transparent 36%),
-        linear-gradient(180deg, #10243f, #050b14);
+        radial-gradient(circle at 50% 15%, color-mix(in srgb, var(--accent-2) 28%, transparent), transparent 36%),
+        linear-gradient(180deg, var(--app-top), var(--app-bottom));
     }
 
     #stage {
@@ -87,7 +97,7 @@
       padding: 7px 10px;
       border: 1px solid var(--line);
       border-radius: 13px;
-      background: rgba(6, 15, 28, .78);
+      background: var(--hud-bg);
       backdrop-filter: blur(10px);
       box-shadow: 0 8px 24px rgba(0,0,0,.22);
     }
@@ -122,7 +132,7 @@
       border: 1px solid var(--line);
       border-radius: 13px;
       color: white;
-      background: rgba(6, 15, 28, .8);
+      background: var(--hud-bg);
       cursor: pointer;
       font-size: 20px;
     }
@@ -136,7 +146,7 @@
       display: grid;
       place-items: center;
       padding: 18px;
-      background: rgba(3, 8, 15, .6);
+      background: var(--overlay-bg);
       backdrop-filter: blur(8px);
     }
 
@@ -186,7 +196,7 @@
 
     .car-card.selected {
       border-color: var(--accent);
-      background: rgba(255,213,74,.11);
+      background: var(--selected-bg);
     }
 
     .car-card:hover {
@@ -225,7 +235,7 @@
 
     .difficulty-btn.selected {
       border-color: var(--accent-2);
-      background: rgba(70,214,255,.12);
+      background: color-mix(in srgb, var(--accent-2) 18%, transparent);
     }
 
     .difficulty-btn small {
@@ -243,16 +253,16 @@
 
     .primary-btn {
       padding: 15px 22px;
-      background: linear-gradient(180deg, #ffe46d, #ffbf32);
-      color: #332000;
-      box-shadow: 0 10px 30px rgba(255,188,45,.25);
+      background: linear-gradient(180deg, var(--button-top), var(--button-bottom));
+      color: var(--button-text);
+      box-shadow: 0 10px 30px var(--accent-shadow);
     }
 
     .primary-btn:hover { filter: brightness(1.05); }
 
     .secondary-btn {
       padding: 13px 18px;
-      background: rgba(255,255,255,.09);
+      background: var(--panel-soft);
       color: white;
       border: 1px solid var(--line);
     }
@@ -286,7 +296,7 @@
       transform: translate(-50%, -12px);
       padding: 9px 16px;
       border-radius: 999px;
-      background: rgba(9, 19, 35, .9);
+      background: var(--panel-soft);
       border: 1px solid rgba(255,255,255,.18);
       color: white;
       font-weight: 900;
@@ -605,17 +615,28 @@
     : 'easy';
 
   const INTERFACE_THEMES = {
-    classic: { accent: '#ffd54a', accent2: '#46d6ff', panel: 'rgba(9, 19, 35, .93)' },
-    blue:    { accent: '#60a5fa', accent2: '#22d3ee', panel: 'rgba(8, 24, 50, .94)' },
-    green:   { accent: '#65e5a0', accent2: '#bef264', panel: 'rgba(7, 38, 29, .94)' },
-    purple:  { accent: '#c084fc', accent2: '#f0abfc', panel: 'rgba(36, 18, 59, .94)' },
-    orange:  { accent: '#fb923c', accent2: '#facc15', panel: 'rgba(55, 28, 8, .94)' }
+    classic: { accent:'#ffd54a',accent2:'#46d6ff',panel:'rgba(9,19,35,.94)',panelSoft:'rgba(15,31,52,.90)',hud:'rgba(6,15,28,.86)',overlay:'rgba(3,8,15,.62)',selected:'rgba(255,213,74,.16)',appTop:'#173657',appBottom:'#050b14',buttonTop:'#ffe46d',buttonBottom:'#ffbf32',buttonText:'#332000',shadow:'rgba(255,188,45,.30)' },
+    blue: { accent:'#67b7ff',accent2:'#22d3ee',panel:'rgba(7,25,55,.96)',panelSoft:'rgba(12,44,82,.92)',hud:'rgba(4,28,57,.88)',overlay:'rgba(2,12,28,.66)',selected:'rgba(70,170,255,.22)',appTop:'#123d70',appBottom:'#030b19',buttonTop:'#78d8ff',buttonBottom:'#288de8',buttonText:'#03182c',shadow:'rgba(41,148,255,.34)' },
+    green: { accent:'#7ee6a8',accent2:'#d8f56d',panel:'rgba(6,43,31,.96)',panelSoft:'rgba(14,68,48,.92)',hud:'rgba(4,36,25,.89)',overlay:'rgba(2,20,13,.66)',selected:'rgba(101,229,160,.22)',appTop:'#155a3d',appBottom:'#03130d',buttonTop:'#baf58c',buttonBottom:'#37c779',buttonText:'#052417',shadow:'rgba(62,210,128,.32)' },
+    purple: { accent:'#c895ff',accent2:'#ff9ae8',panel:'rgba(40,17,69,.96)',panelSoft:'rgba(72,31,112,.92)',hud:'rgba(34,12,62,.89)',overlay:'rgba(18,4,34,.67)',selected:'rgba(192,132,252,.24)',appTop:'#553080',appBottom:'#10051d',buttonTop:'#e7adff',buttonBottom:'#a957e8',buttonText:'#23052f',shadow:'rgba(185,94,241,.34)' },
+    orange: { accent:'#ff9b4a',accent2:'#ffd84a',panel:'rgba(63,28,7,.96)',panelSoft:'rgba(95,43,11,.92)',hud:'rgba(52,22,5,.89)',overlay:'rgba(28,10,1,.67)',selected:'rgba(251,146,60,.24)',appTop:'#8d4214',appBottom:'#1b0802',buttonTop:'#ffd76f',buttonBottom:'#f47a2b',buttonText:'#341300',shadow:'rgba(245,124,45,.34)' }
   };
 
   const INTERFACE_THEME = INTERFACE_THEMES[GAME_CONFIG.interfaceTheme] || INTERFACE_THEMES.classic;
-  document.documentElement.style.setProperty('--accent', INTERFACE_THEME.accent);
-  document.documentElement.style.setProperty('--accent-2', INTERFACE_THEME.accent2);
-  document.documentElement.style.setProperty('--panel', INTERFACE_THEME.panel);
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty('--accent', INTERFACE_THEME.accent);
+  rootStyle.setProperty('--accent-2', INTERFACE_THEME.accent2);
+  rootStyle.setProperty('--panel', INTERFACE_THEME.panel);
+  rootStyle.setProperty('--panel-soft', INTERFACE_THEME.panelSoft);
+  rootStyle.setProperty('--hud-bg', INTERFACE_THEME.hud);
+  rootStyle.setProperty('--overlay-bg', INTERFACE_THEME.overlay);
+  rootStyle.setProperty('--selected-bg', INTERFACE_THEME.selected);
+  rootStyle.setProperty('--app-top', INTERFACE_THEME.appTop);
+  rootStyle.setProperty('--app-bottom', INTERFACE_THEME.appBottom);
+  rootStyle.setProperty('--button-top', INTERFACE_THEME.buttonTop);
+  rootStyle.setProperty('--button-bottom', INTERFACE_THEME.buttonBottom);
+  rootStyle.setProperty('--button-text', INTERFACE_THEME.buttonText);
+  rootStyle.setProperty('--accent-shadow', INTERFACE_THEME.shadow);
 
   const ASSETS = {
     roadside: {
@@ -628,14 +649,14 @@
       { id: 'yellow', name: 'Жёлтая',   src: 'assets/cars/player_yellow.png', rotation: 0 },
       { id: 'green',  name: 'Зелёная',  src: 'assets/cars/player_green.png', rotation: 0 },
       { id: 'pickup', name: 'Пикап',    src: 'assets/cars/player_pickup.png', rotation: 0 },
-      { id: 'purple', name: 'Гоночная', src: 'assets/cars/player_purple.png', rotation: Math.PI }
+      { id: 'purple', name: 'Гоночная', src: 'assets/cars/player_purple.png', rotation: 0 }
     ],
     traffic: [
       { id: 'taxi',         src: 'assets/traffic/taxi.png',         scale: 0.72, rotation: 0 },
       { id: 'police',       src: 'assets/traffic/police.png',       scale: 0.72, rotation: 0 },
       { id: 'ambulance',    src: 'assets/traffic/ambulance.png',    scale: 0.78, rotation: 0 },
       { id: 'pickup',       src: 'assets/traffic/pickup.png',       scale: 0.78, rotation: 0 },
-      { id: 'purple_racer', src: 'assets/traffic/purple_racer.png', scale: 0.70, rotation: Math.PI },
+      { id: 'purple_racer', src: 'assets/traffic/purple_racer.png', scale: 0.70, rotation: 0 },
       { id: 'firetruck',    src: 'assets/traffic/firetruck.png',    scale: 0.92, rotation: 0 },
       { id: 'school_bus',   src: 'assets/traffic/school_bus.png',   scale: 0.90, rotation: 0 }
     ]
@@ -651,32 +672,32 @@
     desert: {
       id: 'desert',
       name: 'Пустыня',
-      left: 'assets/environments/desert.png',
-      right: 'assets/environments/desert.png'
+      left: 'assets/environments/desert_left.webp',
+      right: 'assets/environments/desert_right.webp'
     },
     city: {
       id: 'city',
       name: 'Город',
-      left: 'assets/environments/city.png',
-      right: 'assets/environments/city.png'
+      left: 'assets/environments/city_left.webp',
+      right: 'assets/environments/city_right.webp'
     },
     winter: {
       id: 'winter',
       name: 'Зима',
-      left: 'assets/environments/winter.png',
-      right: 'assets/environments/winter.png'
+      left: 'assets/environments/winter_left.webp',
+      right: 'assets/environments/winter_right.webp'
     },
     autumn: {
       id: 'autumn',
       name: 'Осенний лес',
-      left: 'assets/environments/autumn.png',
-      right: 'assets/environments/autumn.png'
+      left: 'assets/environments/autumn_left.webp',
+      right: 'assets/environments/autumn_right.webp'
     },
     coast: {
       id: 'coast',
       name: 'Побережье',
-      left: 'assets/environments/coast.png',
-      right: 'assets/environments/coast.png'
+      left: 'assets/environments/coast_left.webp',
+      right: 'assets/environments/coast_right.webp'
     }
   };
 
@@ -699,6 +720,22 @@
   ];
 
   if (!PLAYER_OPTIONS.length) PLAYER_OPTIONS.push(ASSETS.players[0]);
+
+  const DEFAULT_TRAFFIC_IDS = ASSETS.traffic.map(item => item.id);
+  const ENABLED_TRAFFIC_IDS = Array.isArray(GAME_CONFIG.enabledTrafficIds) && GAME_CONFIG.enabledTrafficIds.length ? GAME_CONFIG.enabledTrafficIds : DEFAULT_TRAFFIC_IDS;
+  const CUSTOM_TRAFFIC = Array.isArray(GAME_CONFIG.customTraffic) ? GAME_CONFIG.customTraffic.filter(item => item && item.src) : [];
+  const TRAFFIC_OPTIONS = [
+    ...ASSETS.traffic.filter(item => ENABLED_TRAFFIC_IDS.includes(item.id)),
+    ...CUSTOM_TRAFFIC.map((item, index) => ({
+      id: item.id || `custom_traffic_${index}`,
+      name: item.name || `Участник ${index + 1}`,
+      src: item.src,
+      scale: Math.max(.42, Math.min(1.05, Number(item.scale) || .72)),
+      rotation: Number(item.rotation) || 0,
+      custom: true
+    }))
+  ];
+  if (!TRAFFIC_OPTIONS.length) TRAFFIC_OPTIONS.push(ASSETS.traffic[0]);
 
   const ENVIRONMENT_ID = GAME_CONFIG.environmentId || 'meadow';
   const ENVIRONMENT = GAME_CONFIG.customEnvironment
@@ -828,7 +865,7 @@
     for (const player of PLAYER_OPTIONS) {
       loaded.players.set(player.id, await loadImage(player.src));
     }
-    for (const car of ASSETS.traffic) {
+    for (const car of TRAFFIC_OPTIONS) {
       loaded.traffic.set(car.id, await loadImage(car.src));
     }
     if (GAME_CONFIG.bonusImage) {
@@ -1087,7 +1124,8 @@
 
     const spec = weightedTraffic();
     const image = loaded.traffic.get(spec.id);
-    const width = lanes.laneWidth * spec.scale;
+    if (!image) return;
+    const width = lanes.laneWidth * (spec.scale || .72);
     const ratio = image.naturalHeight / image.naturalWidth;
     const height = Math.min(state.H * 0.36, width * ratio);
     const x = lanes.centers[lane] - width / 2;
@@ -1106,28 +1144,18 @@
       aggressive,
       followSpeed: level.followSpeed,
       rotation: spec.rotation || 0,
-      hitScale: spec.id === 'school_bus' || spec.id === 'firetruck' ? 0.88 : 0.74
+      hitScale: (spec.scale || .72) >= .86 ? 0.88 : 0.74
     });
   }
 
   function weightedTraffic() {
-    const roll = Math.random();
-    if (state.level === 'easy') {
-      return roll < .28 ? ASSETS.traffic[0]
-        : roll < .48 ? ASSETS.traffic[1]
-        : roll < .68 ? ASSETS.traffic[3]
-        : roll < .85 ? ASSETS.traffic[4]
-        : ASSETS.traffic[5];
-    }
-    if (state.level === 'medium') {
-      return roll < .15 ? ASSETS.traffic[0]
-        : roll < .30 ? ASSETS.traffic[1]
-        : roll < .45 ? ASSETS.traffic[2]
-        : roll < .62 ? ASSETS.traffic[3]
-        : roll < .79 ? ASSETS.traffic[5]
-        : ASSETS.traffic[6];
-    }
-    return ASSETS.traffic[Math.floor(Math.random() * ASSETS.traffic.length)];
+    if (TRAFFIC_OPTIONS.length === 1) return TRAFFIC_OPTIONS[0];
+    const heavy = TRAFFIC_OPTIONS.filter(item => item.scale >= .86);
+    const regular = TRAFFIC_OPTIONS.filter(item => item.scale < .86);
+    if (state.level === 'easy' && regular.length && Math.random() < .82) return regular[Math.floor(Math.random() * regular.length)];
+    if (state.level === 'medium' && regular.length && Math.random() < .62) return regular[Math.floor(Math.random() * regular.length)];
+    const pool = heavy.length && Math.random() < (state.level === 'hard' ? .42 : .22) ? heavy : TRAFFIC_OPTIONS;
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   function spawnCollectible() {
@@ -1171,16 +1199,14 @@
     );
     state.collectibles = state.collectibles.filter(item => item.y > state.H * 0.62);
 
-    const types = ['police', 'taxi', 'ambulance', 'pickup', 'purple_racer'];
     const offsets = [0.00, 0.34, 0.14, 0.48, 0.25];
     const gateCars = [];
     let maxBottom = 0;
 
     for (let lane = 0; lane < lanes.laneCount; lane++) {
-      const type = types[lane % types.length];
-      const spec = ASSETS.traffic.find(item => item.id === type);
-      const image = loaded.traffic.get(type);
-      const width = lanes.laneWidth * 0.68;
+      const spec = TRAFFIC_OPTIONS[lane % TRAFFIC_OPTIONS.length];
+      const image = loaded.traffic.get(spec.id);
+      const width = lanes.laneWidth * Math.min(.76, Math.max(.58, spec.scale || .68));
       const ratio = image.naturalHeight / image.naturalWidth;
       const height = Math.min(state.H * 0.27, width * ratio);
       const offsetY = offsets[lane] * lanes.laneWidth;
