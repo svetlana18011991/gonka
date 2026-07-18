@@ -311,7 +311,121 @@
       transform: translate(-50%, 0);
     }
 
-    #quizPanel { width: min(620px, 100%); }
+    .quiz-workspace {
+      width: min(1180px, 100%);
+      max-height: calc(100vh - 36px);
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      gap: 14px;
+    }
+
+    #quizPanel {
+      width: min(620px, 100%);
+      flex: 0 1 620px;
+    }
+
+    .quiz-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .scratch-toggle {
+      width: 46px;
+      height: 46px;
+      flex: 0 0 auto;
+      border: 2px solid var(--accent);
+      border-radius: 14px;
+      background: var(--panel-soft);
+      color: white;
+      cursor: pointer;
+      font-size: 22px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.25);
+    }
+
+    .scratch-toggle.active {
+      background: var(--accent);
+      color: #201700;
+    }
+
+    .scratch-panel {
+      display: none;
+      width: min(470px, 43vw);
+      min-width: 310px;
+      min-height: 430px;
+      overflow: hidden;
+      border-radius: 22px;
+      border: 3px solid var(--accent-2);
+      background: #ffffff;
+      color: #1e293b;
+      box-shadow: 0 30px 100px rgba(0,0,0,.5);
+      flex-direction: column;
+    }
+
+    .scratch-panel.open { display: flex; }
+
+    .scratch-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #f4f7fb;
+      border-bottom: 1px solid #d7deea;
+      flex-wrap: wrap;
+    }
+
+    .scratch-title { font-weight: 950; font-size: 17px; }
+    .scratch-controls { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .scratch-controls label { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; color: #475569; }
+    .scratch-controls input[type="color"] { width: 34px; height: 30px; padding: 2px; border: 1px solid #bac5d4; border-radius: 8px; background: white; }
+    .scratch-controls input[type="range"] { width: 72px; }
+    .scratch-tool {
+      min-width: 34px;
+      height: 32px;
+      border: 1px solid #bac5d4;
+      border-radius: 9px;
+      background: white;
+      color: #1f2937;
+      cursor: pointer;
+      font-weight: 900;
+    }
+    .scratch-tool.active { background: #dbeafe; border-color: #3b82f6; }
+    .scratch-close { background: #fee2e2; border-color: #fca5a5; }
+
+    .scratch-body {
+      position: relative;
+      flex: 1;
+      min-height: 340px;
+      overflow: hidden;
+      background-color: #fff;
+      background-image:
+        linear-gradient(#dbe4ef 1px, transparent 1px),
+        linear-gradient(90deg, #dbe4ef 1px, transparent 1px);
+      background-size: 28px 28px;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    #scratchCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    @media (max-width: 860px), (orientation: portrait) {
+      #quizOverlay { overflow-y: auto; align-items: start; }
+      .quiz-workspace { flex-direction: column; max-height: none; align-items: center; }
+      #quizPanel { flex-basis: auto; }
+      .scratch-panel { width: min(620px, 100%); min-width: 0; min-height: 360px; }
+      .scratch-body { min-height: 280px; }
+    }
+
     #quizQuestion { font-size: clamp(25px, 5vw, 42px); line-height: 1.2; margin: 18px 0; }
     #quizMedia { text-align:center; margin: 8px 0 14px; }
     #quizMedia img { display:block; max-width:min(420px, 92%); max-height:230px; object-fit:contain; margin:0 auto 10px; border-radius:16px; }
@@ -520,16 +634,35 @@
     </section>
 
     <section class="overlay hidden" id="quizOverlay">
-      <div class="panel" id="quizPanel">
-        <div class="hint" id="quizLevel">Задание</div>
-        <h2 id="quizQuestion">Вопрос</h2>
-        <div id="quizMedia"></div>
-        <div id="answers"></div>
-        <div id="textAnswerWrap" class="hidden" style="display:none;gap:10px;grid-template-columns:1fr auto;margin-top:10px">
-          <input id="textAnswerInput" type="text" autocomplete="off" placeholder="Введите ответ" />
-          <button class="primary-btn" id="textAnswerButton" type="button">Ответить</button>
+      <div class="quiz-workspace" id="quizWorkspace">
+        <div class="panel" id="quizPanel">
+          <div class="quiz-top-row">
+            <div class="hint" id="quizLevel">Задание</div>
+            <button class="scratch-toggle" id="scratchToggle" type="button" title="Открыть черновик">✏️</button>
+          </div>
+          <h2 id="quizQuestion">Вопрос</h2>
+          <div id="quizMedia"></div>
+          <div id="answers"></div>
+          <div id="textAnswerWrap" class="hidden" style="display:none;gap:10px;grid-template-columns:1fr auto;margin-top:10px">
+            <input id="textAnswerInput" type="text" autocomplete="off" placeholder="Введите ответ" />
+            <button class="primary-btn" id="textAnswerButton" type="button">Ответить</button>
+          </div>
+          <div id="quizMessage"></div>
         </div>
-        <div id="quizMessage"></div>
+
+        <aside class="scratch-panel" id="scratchPanel" aria-hidden="true">
+          <div class="scratch-head">
+            <div class="scratch-title">✏️ Черновик</div>
+            <div class="scratch-controls">
+              <label title="Цвет линии">Цвет <input id="scratchColor" type="color" value="#172554" /></label>
+              <label title="Толщина линии">Толщина <input id="scratchSize" type="range" min="2" max="24" value="5" /></label>
+              <button class="scratch-tool" id="scratchEraser" type="button" title="Ластик">Ластик</button>
+              <button class="scratch-tool" id="scratchClear" type="button" title="Очистить черновик">Очистить</button>
+              <button class="scratch-tool scratch-close" id="scratchClose" type="button" title="Закрыть черновик">✕</button>
+            </div>
+          </div>
+          <div class="scratch-body" id="scratchBody"><canvas id="scratchCanvas"></canvas></div>
+        </aside>
       </div>
     </section>
 
@@ -784,6 +917,15 @@
   const loading = $('#loading');
   const menuOverlay = $('#menuOverlay');
   const quizOverlay = $('#quizOverlay');
+  const scratchPanel = $('#scratchPanel');
+  const scratchToggle = $('#scratchToggle');
+  const scratchCanvas = $('#scratchCanvas');
+  const scratchBody = $('#scratchBody');
+  const scratchColor = $('#scratchColor');
+  const scratchSize = $('#scratchSize');
+  const scratchEraser = $('#scratchEraser');
+  const scratchClear = $('#scratchClear');
+  const scratchClose = $('#scratchClose');
   const pauseOverlay = $('#pauseOverlay');
   const winOverlay = $('#winOverlay');
   const gameOverOverlay = $('#gameOverOverlay');
@@ -996,6 +1138,7 @@
   }
 
   function endToMenu() {
+    closeScratch(true);
     state.mode = 'menu';
     state.obstacles = [];
     state.collectibles = [];
@@ -1418,9 +1561,138 @@
     setTimeout(showQuiz, 260);
   }
 
+  let scratchContext = null;
+  let scratchDrawing = false;
+  let scratchEraseMode = false;
+  let scratchLastPoint = null;
+
+  function resizeScratchCanvas(preserve = true) {
+    if (!scratchCanvas || !scratchBody) return;
+    const rect = scratchBody.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
+
+    const ratio = Math.min(2, window.devicePixelRatio || 1);
+    let snapshot = null;
+    if (preserve && scratchCanvas.width && scratchCanvas.height) {
+      snapshot = document.createElement('canvas');
+      snapshot.width = scratchCanvas.width;
+      snapshot.height = scratchCanvas.height;
+      snapshot.getContext('2d').drawImage(scratchCanvas, 0, 0);
+    }
+
+    scratchCanvas.width = Math.round(rect.width * ratio);
+    scratchCanvas.height = Math.round(rect.height * ratio);
+    scratchCanvas.style.width = `${rect.width}px`;
+    scratchCanvas.style.height = `${rect.height}px`;
+    scratchContext = scratchCanvas.getContext('2d');
+    scratchContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+    scratchContext.lineCap = 'round';
+    scratchContext.lineJoin = 'round';
+
+    if (snapshot) {
+      scratchContext.save();
+      scratchContext.setTransform(1, 0, 0, 1, 0, 0);
+      scratchContext.drawImage(snapshot, 0, 0, scratchCanvas.width, scratchCanvas.height);
+      scratchContext.restore();
+      scratchContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+  }
+
+  function clearScratch() {
+    if (!scratchCanvas) return;
+    const context = scratchCanvas.getContext('2d');
+    context.save();
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, scratchCanvas.width, scratchCanvas.height);
+    context.restore();
+  }
+
+  function openScratch() {
+    if (!scratchPanel) return;
+    scratchPanel.classList.add('open');
+    scratchPanel.setAttribute('aria-hidden', 'false');
+    scratchToggle?.classList.add('active');
+    scratchToggle?.setAttribute('title', 'Закрыть черновик');
+    requestAnimationFrame(() => resizeScratchCanvas(true));
+  }
+
+  function closeScratch(clear = false) {
+    if (!scratchPanel) return;
+    scratchDrawing = false;
+    scratchLastPoint = null;
+    scratchPanel.classList.remove('open');
+    scratchPanel.setAttribute('aria-hidden', 'true');
+    scratchToggle?.classList.remove('active');
+    scratchToggle?.setAttribute('title', 'Открыть черновик');
+    if (clear) clearScratch();
+  }
+
+  function toggleScratch() {
+    if (scratchPanel?.classList.contains('open')) closeScratch(false);
+    else openScratch();
+  }
+
+  function scratchPoint(event) {
+    const rect = scratchCanvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+  }
+
+  function beginScratch(event) {
+    if (!scratchContext) resizeScratchCanvas(false);
+    scratchDrawing = true;
+    scratchLastPoint = scratchPoint(event);
+    scratchCanvas.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  }
+
+  function drawScratch(event) {
+    if (!scratchDrawing || !scratchContext || !scratchLastPoint) return;
+    const point = scratchPoint(event);
+    scratchContext.save();
+    scratchContext.globalCompositeOperation = scratchEraseMode ? 'destination-out' : 'source-over';
+    scratchContext.strokeStyle = scratchColor?.value || '#172554';
+    scratchContext.lineWidth = Number(scratchSize?.value || 5);
+    scratchContext.beginPath();
+    scratchContext.moveTo(scratchLastPoint.x, scratchLastPoint.y);
+    scratchContext.lineTo(point.x, point.y);
+    scratchContext.stroke();
+    scratchContext.restore();
+    scratchLastPoint = point;
+    event.preventDefault();
+  }
+
+  function endScratch(event) {
+    scratchDrawing = false;
+    scratchLastPoint = null;
+    try { scratchCanvas.releasePointerCapture?.(event.pointerId); } catch {}
+  }
+
+  scratchToggle?.addEventListener('click', toggleScratch);
+  scratchClose?.addEventListener('click', () => closeScratch(false));
+  scratchClear?.addEventListener('click', clearScratch);
+  scratchEraser?.addEventListener('click', () => {
+    scratchEraseMode = !scratchEraseMode;
+    scratchEraser.classList.toggle('active', scratchEraseMode);
+    scratchEraser.textContent = scratchEraseMode ? 'Рисовать' : 'Ластик';
+  });
+  scratchCanvas?.addEventListener('pointerdown', beginScratch);
+  scratchCanvas?.addEventListener('pointermove', drawScratch);
+  scratchCanvas?.addEventListener('pointerup', endScratch);
+  scratchCanvas?.addEventListener('pointercancel', endScratch);
+  scratchCanvas?.addEventListener('pointerleave', event => {
+    if (event.buttons === 0) endScratch(event);
+  });
+
   function showQuiz() {
     const task = state.currentTask;
     if (!task) return;
+    closeScratch(true);
+    scratchEraseMode = false;
+    scratchEraser?.classList.remove('active');
+    if (scratchEraser) scratchEraser.textContent = 'Ластик';
 
     $('#quizLevel').textContent = state.draftPreview ? 'Черновик вопроса — не сохранён' : 'Реши задание, чтобы продолжить';
     const question = $('#quizQuestion');
@@ -1524,6 +1796,7 @@
     beep(720, .16, 'sine');
 
     setTimeout(() => {
+      closeScratch(true);
       quizOverlay.classList.add('hidden');
       const hit = state.activeCollision;
       if (hit) state.obstacles = state.obstacles.filter(obstacle => obstacle !== hit);
@@ -2010,7 +2283,7 @@
   $('#textAnswerButton').addEventListener('click', checkTextAnswer);
   $('#textAnswerInput').addEventListener('keydown', event => { if (event.key === 'Enter') checkTextAnswer(); });
 
-  window.addEventListener('resize', resize);
+  window.addEventListener('resize', () => { resize(); if (scratchPanel?.classList.contains('open')) resizeScratchCanvas(true); });
   new ResizeObserver(resize).observe(stage);
 
   function clamp(value, min, max) {
