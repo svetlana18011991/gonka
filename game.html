@@ -27,6 +27,7 @@
       --muted: #b7c1d8;
       --quiz-neon: #46d6ff;
       --question-plate: #101b31;
+      --quiz-panel-bg: rgba(6, 10, 18, .97);
     }
 
     * { box-sizing: border-box; }
@@ -313,6 +314,10 @@
       transform: translate(-50%, 0);
     }
 
+    #quizOverlay {
+      background: rgba(2, 5, 10, .76);
+    }
+
     .quiz-workspace {
       width: min(1180px, 100%);
       max-height: calc(100vh - 36px);
@@ -325,18 +330,22 @@
     #quizPanel {
       width: min(620px, 100%);
       flex: 0 1 620px;
-      border: 2px solid rgba(255,255,255,.17);
+      border: 2px solid rgba(255,255,255,.18);
+      background:
+        radial-gradient(circle at 50% 0, rgba(255,255,255,.055), transparent 42%),
+        var(--quiz-panel-bg);
+      box-shadow: 0 28px 90px rgba(0,0,0,.62);
+      backdrop-filter: blur(12px);
       transition: border-color .2s ease, box-shadow .2s ease;
     }
 
     #quizPanel.quiz-neon {
       border-color: var(--quiz-neon);
       box-shadow:
-        0 0 8px var(--quiz-neon),
-        0 0 24px color-mix(in srgb, var(--quiz-neon) 72%, transparent),
-        0 0 52px color-mix(in srgb, var(--quiz-neon) 38%, transparent),
-        inset 0 0 20px color-mix(in srgb, var(--quiz-neon) 12%, transparent),
-        0 30px 100px rgba(0,0,0,.52);
+        0 0 0 1px color-mix(in srgb, var(--quiz-neon) 42%, transparent),
+        0 0 13px color-mix(in srgb, var(--quiz-neon) 72%, transparent),
+        0 0 30px color-mix(in srgb, var(--quiz-neon) 30%, transparent),
+        0 28px 90px rgba(0,0,0,.66);
     }
 
     .quiz-top-row {
@@ -804,6 +813,56 @@
     : '#101b31';
   rootStyle.setProperty('--quiz-neon', QUESTION_NEON_COLOR);
   rootStyle.setProperty('--question-plate', QUESTION_PLATE_COLOR);
+
+  const USE_LATEX = !!GAME_CONFIG.useLatex;
+  let mathJaxLoadingPromise = null;
+
+  function ensureMathJaxLoaded() {
+    if (!USE_LATEX) return Promise.resolve(false);
+    if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') return Promise.resolve(true);
+    if (mathJaxLoadingPromise) return mathJaxLoadingPromise;
+
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      svg: { fontCache: 'global' },
+      startup: { typeset: false }
+    };
+
+    mathJaxLoadingPromise = new Promise(resolve => {
+      const existing = document.getElementById('mathjax-script');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(true), { once: true });
+        existing.addEventListener('error', () => resolve(false), { once: true });
+        return;
+      }
+      const script = document.createElement('script');
+      script.id = 'mathjax-script';
+      script.async = true;
+      script.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-svg.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.head.appendChild(script);
+    });
+    return mathJaxLoadingPromise;
+  }
+
+  async function typesetQuizMath() {
+    if (!USE_LATEX) return;
+    const loadedOk = await ensureMathJaxLoaded();
+    if (!loadedOk || !window.MathJax || typeof window.MathJax.typesetPromise !== 'function') return;
+    const panel = document.getElementById('quizPanel');
+    if (!panel) return;
+    try {
+      if (typeof window.MathJax.typesetClear === 'function') window.MathJax.typesetClear([panel]);
+      await window.MathJax.typesetPromise([panel]);
+    } catch (error) {
+      console.warn('Не удалось отрисовать формулу', error);
+    }
+  }
 
   const ASSETS = {
     roadside: {
@@ -1777,6 +1836,7 @@
     }
 
     quizOverlay.classList.remove('hidden');
+    typesetQuizMath();
   }
 
   function normalizeAnswer(value) {
@@ -1819,6 +1879,7 @@
     if (!task) return;
     $('#quizMessage').textContent = 'Верно! ' + (task.explanation || 'Ответ принят.');
     $('#quizMessage').className = 'ok';
+    typesetQuizMath();
     if (state.draftPreview) {
       beep(720, .16, 'sine');
       return;
@@ -2408,6 +2469,7 @@
   }
 
   async function init() {
+    if (USE_LATEX) ensureMathJaxLoaded();
     document.getElementById('quizPanel')?.classList.toggle('quiz-neon', QUESTION_NEON_ENABLED);
     document.title = GAME_CONFIG.title || 'Учебная гонка';
     $('#gameTitle').textContent = '🏁 ' + (GAME_CONFIG.title || 'Учебная гонка');
