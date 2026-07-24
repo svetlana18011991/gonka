@@ -767,6 +767,7 @@
   }
 
   const FIREBASE_DATABASE_URL = 'https://shkatulka-games-default-rtdb.firebaseio.com';
+  const SHARED_MEDIA_PREFIX = '@shared:';
 
   function getNestedValue(source, path) {
     return String(path || '').split('/').filter(Boolean).reduce((value, key) => {
@@ -774,30 +775,72 @@
     }, source);
   }
 
-  function resolveMediaValue(value, media) {
+  function sharedMediaHash(value) {
+    if (typeof value !== 'string' || !value.startsWith(SHARED_MEDIA_PREFIX)) return '';
+    const hash = value.slice(SHARED_MEDIA_PREFIX.length).trim().toLowerCase();
+    return /^[a-f0-9]{64}$/.test(hash) ? hash : '';
+  }
+
+  function collectSharedMediaHashes(value, result = new Set()) {
+    if (typeof value === 'string') {
+      const hash = sharedMediaHash(value);
+      if (hash) result.add(hash);
+      return result;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(item => collectSharedMediaHashes(item, result));
+      return result;
+    }
+    if (value && typeof value === 'object') {
+      Object.values(value).forEach(item => collectSharedMediaHashes(item, result));
+    }
+    return result;
+  }
+
+  async function loadSharedMedia(config, explicitRefs) {
+    const hashes = collectSharedMediaHashes(config);
+    if (explicitRefs && typeof explicitRefs === 'object') {
+      Object.keys(explicitRefs).forEach(hash => {
+        if (/^[a-f0-9]{64}$/.test(hash)) hashes.add(hash);
+      });
+    }
+    const entries = await Promise.all([...hashes].map(async hash => {
+      const node = await fetchJsonWithTimeout(`${FIREBASE_DATABASE_URL}/raceMedia/${hash}.json`);
+      if (!node || typeof node.data !== 'string' || !/^data:(?:image|audio)\//i.test(node.data)) {
+        throw new Error('Не удалось загрузить один из медиафайлов игры');
+      }
+      return [hash, node.data];
+    }));
+    return Object.fromEntries(entries);
+  }
+
+  function resolveMediaValue(value, media, sharedMedia) {
+    const hash = sharedMediaHash(value);
+    if (hash) return sharedMedia[hash] || '';
     if (typeof value !== 'string' || !value.startsWith('@media:')) return value || '';
     const resolved = getNestedValue(media, value.slice(7));
     return typeof resolved === 'string' ? resolved : '';
   }
 
-  function hydrateServerConfig(node) {
+  async function hydrateServerConfig(node) {
     const source = node && typeof node === 'object' ? node : {};
     const media = source.media && typeof source.media === 'object' ? source.media : {};
     const config = structuredClone(source.config && typeof source.config === 'object' ? source.config : {});
+    const sharedMedia = await loadSharedMedia(config, source.mediaRefs);
 
-    config.customEnvironment = resolveMediaValue(config.customEnvironment, media);
-    config.bonusImage = resolveMediaValue(config.bonusImage, media);
+    config.customEnvironment = resolveMediaValue(config.customEnvironment, media, sharedMedia);
+    config.bonusImage = resolveMediaValue(config.bonusImage, media, sharedMedia);
     config.customPlayers = Array.isArray(config.customPlayers)
-      ? config.customPlayers.map(item => ({ ...item, src: resolveMediaValue(item?.src, media) }))
+      ? config.customPlayers.map(item => ({ ...item, src: resolveMediaValue(item?.src, media, sharedMedia) }))
       : [];
     config.customTraffic = Array.isArray(config.customTraffic)
-      ? config.customTraffic.map(item => ({ ...item, src: resolveMediaValue(item?.src, media) }))
+      ? config.customTraffic.map(item => ({ ...item, src: resolveMediaValue(item?.src, media, sharedMedia) }))
       : [];
     config.tasks = Array.isArray(config.tasks)
       ? config.tasks.map(task => ({
           ...task,
-          image: resolveMediaValue(task?.image, media),
-          audio: resolveMediaValue(task?.audio, media)
+          image: resolveMediaValue(task?.image, media, sharedMedia),
+          audio: resolveMediaValue(task?.audio, media, sharedMedia)
         }))
       : [];
 
@@ -833,7 +876,7 @@
       if (!node || typeof node !== 'object' || !node.config) {
         throw new Error('Игра не найдена или была удалена');
       }
-      return hydrateServerConfig(node);
+      return await hydrateServerConfig(node);
     } catch (error) {
       console.error('Не удалось загрузить игру с Firebase', error);
       return { __loadError: error?.message || 'Не удалось загрузить игру с сервера' };
