@@ -530,8 +530,49 @@ function validate(q){if(!q.question)return'Введите вопрос';if(q.typ
 function queueDraftPreview(){if(!$('questionModal').classList.contains('show'))return;clearTimeout(queueDraftPreview.t);queueDraftPreview.t=setTimeout(()=>{try{const focusState=captureQuestionFocus();getDraftFromModal();updatePreview(true,focusState)}catch{}},420)}
 function readDataUrl(file,maxMb){return new Promise((resolve,reject)=>{if(!file)return reject(new Error('Файл не выбран'));if(file.size>maxMb*1024*1024)return reject(new Error(`Файл больше ${maxMb} МБ`));const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error('Не удалось прочитать файл'));r.readAsDataURL(file)})}
 function optimizeImage(file,maxW,maxH,quality=.82){return new Promise((resolve,reject)=>{if(!file)return reject(new Error('Файл не выбран'));if(file.size>12*1024*1024)return reject(new Error('Картинка больше 12 МБ'));const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{const k=Math.min(1,maxW/img.naturalWidth,maxH/img.naturalHeight);const w=Math.max(1,Math.round(img.naturalWidth*k)),h=Math.max(1,Math.round(img.naturalHeight*k));const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const c=canvas.getContext('2d');c.clearRect(0,0,w,h);c.imageSmoothingQuality='high';c.drawImage(img,0,0,w,h);URL.revokeObjectURL(url);resolve(canvas.toDataURL('image/webp',quality))};img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Не удалось открыть изображение'))};img.src=url})}
-async function copyText(text){try{await navigator.clipboard.writeText(text);return true}catch{}const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok}
-function showCodeModal(code,url){const wrap=document.createElement('div');wrap.className='modal-backdrop show';wrap.innerHTML=`<div class="modal" style="max-width:760px"><div class="modal-head"><strong>Код для Genially</strong><button class="btn danger">Закрыть</button></div><div class="modal-body"><label>Ссылка на игру</label><input readonly value="${escapeHtml(url)}"><label>Код iframe</label><textarea readonly style="min-height:180px;font-family:monospace">${escapeHtml(code)}</textarea><div class="muted">После публикации редактора на GitHub Pages ссылка будет работать в Genially.</div></div><div class="modal-foot"><button class="btn primary" data-copy>📋 Скопировать код</button></div></div>`;wrap.querySelector('.danger').onclick=()=>wrap.remove();wrap.querySelector('[data-copy]').onclick=async()=>{await copyText(code);toast(Editor.config.language==='en'?'Code copied':Editor.config.language==='zh'?'代码已复制':Editor.config.language==='de'?'Code kopiert':Editor.config.language==='fr'?'Code copié':Editor.config.language==='ko'?'코드가 복사되었습니다':'Код скопирован');wrap.remove()};wrap.onclick=e=>{if(e.target===wrap)wrap.remove()};document.body.appendChild(wrap)}
+async function copyText(text){
+  const value=String(text??'');
+  if(navigator.clipboard&&window.isSecureContext){
+    try{await navigator.clipboard.writeText(value);return true}catch(error){console.warn('Clipboard API failed',error)}
+  }
+  const ta=document.createElement('textarea');
+  ta.value=value;
+  ta.setAttribute('readonly','');
+  ta.style.cssText='position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;';
+  document.body.appendChild(ta);
+  ta.focus({preventScroll:true});
+  ta.select();
+  ta.setSelectionRange(0,ta.value.length);
+  let ok=false;
+  try{ok=document.execCommand('copy')===true}catch(error){console.warn('execCommand copy failed',error)}
+  ta.remove();
+  return ok;
+}
+function showCodeModal(code,url,wasCopied=false){
+  const wrap=document.createElement('div');
+  wrap.className='modal-backdrop show';
+  const copiedText=Editor.config.language==='en'?'The code has already been copied.':Editor.config.language==='zh'?'代码已复制。':Editor.config.language==='de'?'Der Code wurde bereits kopiert.':Editor.config.language==='fr'?'Le code a déjà été copié.':Editor.config.language==='ko'?'코드가 이미 복사되었습니다.':'Код уже скопирован.';
+  const manualText=Editor.config.language==='en'?'Automatic copying was blocked by the browser. Click the button below.':Editor.config.language==='zh'?'浏览器阻止了自动复制。请点击下面的按钮。':Editor.config.language==='de'?'Der Browser hat das automatische Kopieren blockiert. Klicke unten auf die Schaltfläche.':Editor.config.language==='fr'?'Le navigateur a bloqué la copie automatique. Cliquez sur le bouton ci-dessous.':Editor.config.language==='ko'?'브라우저가 자동 복사를 차단했습니다. 아래 버튼을 누르세요.':'Браузер заблокировал автоматическое копирование. Нажми кнопку ниже.';
+  wrap.innerHTML=`<div class="modal" style="max-width:760px"><div class="modal-head"><strong>Код для Genially</strong><button class="btn danger" data-close>Закрыть</button></div><div class="modal-body"><div class="design-callout" data-copy-status>${wasCopied?copiedText:manualText}</div><label>Ссылка на игру</label><input readonly data-game-url value="${escapeHtml(url)}"><label>Код iframe</label><textarea readonly data-code style="min-height:180px;font-family:monospace">${escapeHtml(code)}</textarea><div class="muted">После публикации редактора на GitHub Pages ссылка будет работать в Genially.</div></div><div class="modal-foot"><button class="btn primary" data-copy>📋 Скопировать код</button></div></div>`;
+  const codeArea=wrap.querySelector('[data-code]');
+  const status=wrap.querySelector('[data-copy-status]');
+  const close=()=>wrap.remove();
+  wrap.querySelector('[data-close]').onclick=close;
+  wrap.querySelector('[data-copy]').onclick=async()=>{
+    const copied=await copyText(code);
+    if(copied){
+      status.textContent=copiedText;
+      toast(Editor.config.language==='en'?'Code copied':Editor.config.language==='zh'?'代码已复制':Editor.config.language==='de'?'Code kopiert':Editor.config.language==='fr'?'Code copié':Editor.config.language==='ko'?'코드가 복사되었습니다':'Код скопирован');
+    }else{
+      codeArea.focus();codeArea.select();codeArea.setSelectionRange(0,codeArea.value.length);
+      status.textContent=Editor.config.language==='en'?'The code is selected. Press Ctrl+C.':Editor.config.language==='zh'?'代码已选中，请按 Ctrl+C。':Editor.config.language==='de'?'Der Code ist markiert. Drücke Strg+C.':Editor.config.language==='fr'?'Le code est sélectionné. Appuyez sur Ctrl+C.':Editor.config.language==='ko'?'코드가 선택되었습니다. Ctrl+C를 누르세요.':'Код выделен. Нажми Ctrl+C.';
+    }
+  };
+  wrap.onclick=e=>{if(e.target===wrap)close()};
+  document.body.appendChild(wrap);
+  translateEditorTree(wrap);
+  if(!wasCopied)setTimeout(()=>{try{codeArea.focus();codeArea.select();codeArea.setSelectionRange(0,codeArea.value.length)}catch{}},60);
+}
 function setEditorTab(tab){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));document.querySelectorAll('.tab-section').forEach(s=>s.classList.toggle('active',s.dataset.pane===tab));const body=document.querySelector('.settings .body');if(body)body.scrollTop=0}
 function updateDifficultyModeUI(){const mode=$('difficultyMode').value==='teacher'?'teacher':'student';document.querySelectorAll('#difficultyModeGrid .mode-card').forEach(b=>b.classList.toggle('selected',b.dataset.mode===mode));$('fixedLevelWrap').style.display=mode==='teacher'?'block':'none'}
 function updateQuestionStyleDemo(){const demo=$('questionStyleDemo'),plateDemo=$('questionStylePlateDemo');if(!demo||!plateDemo)return;const neon=$('questionNeonColor')?.value||Editor.config.questionNeonColor||'#46d6ff';const plate=$('questionPlateColor')?.value||Editor.config.questionPlateColor||'#101b31';const enabled=$('questionNeonEnabled')?.checked??(Editor.config.questionNeonEnabled!==false);demo.style.background='linear-gradient(180deg,rgba(9,14,27,.86),rgba(3,7,14,.95))';demo.style.borderColor=enabled?neon:'rgba(255,255,255,.18)';demo.style.boxShadow=enabled?`0 0 12px ${neon}aa,0 0 26px ${neon}44,inset 0 0 0 1px rgba(255,255,255,.05)`:'inset 0 0 0 1px rgba(255,255,255,.05)';plateDemo.style.background=`linear-gradient(180deg, ${plate}, color-mix(in srgb, ${plate} 58%, #050915))`}
@@ -588,8 +629,9 @@ $('copyCode').onclick=async()=>{
     const code=`<iframe src="${saved.url}" width="100%" height="700" frameborder="0" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
     const action=mode==='update'?'Игра обновлена':'Новая игра сохранена';
     const mediaNote=saved.mediaStats.reused?` · повторно использовано файлов: ${saved.mediaStats.reused}`:'';
-    if(await copyText(code))toast(`${action}, код скопирован${mediaNote}`);
-    else showCodeModal(code,saved.url);
+    const copied=await copyText(code);
+    showCodeModal(code,saved.url,copied);
+    toast(copied?`${action}, код скопирован${mediaNote}`:`${action}. Нажми «Скопировать код»${mediaNote}`);
   }catch(error){
     console.error(error);
     toast(error?.message||'Не удалось сохранить игру на Firebase');
