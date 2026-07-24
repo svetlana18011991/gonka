@@ -747,7 +747,7 @@
 </div>
 
 <script>
-(() => {
+(async () => {
   'use strict';
 
   // При скачивании HTML редактор заменяет null на встроенные настройки.
@@ -766,13 +766,81 @@
     }
   }
 
-  function readGameConfig() {
-    if (EMBEDDED_CONFIG && typeof EMBEDDED_CONFIG === 'object') return EMBEDDED_CONFIG;
-    const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
-    return decodeGameConfig(hash.get('config')) || {};
+  const FIREBASE_DATABASE_URL = 'https://shkatulka-games-default-rtdb.firebaseio.com';
+
+  function getNestedValue(source, path) {
+    return String(path || '').split('/').filter(Boolean).reduce((value, key) => {
+      return value && typeof value === 'object' ? value[key] : undefined;
+    }, source);
   }
 
-  const GAME_CONFIG = readGameConfig();
+  function resolveMediaValue(value, media) {
+    if (typeof value !== 'string' || !value.startsWith('@media:')) return value || '';
+    const resolved = getNestedValue(media, value.slice(7));
+    return typeof resolved === 'string' ? resolved : '';
+  }
+
+  function hydrateServerConfig(node) {
+    const source = node && typeof node === 'object' ? node : {};
+    const media = source.media && typeof source.media === 'object' ? source.media : {};
+    const config = structuredClone(source.config && typeof source.config === 'object' ? source.config : {});
+
+    config.customEnvironment = resolveMediaValue(config.customEnvironment, media);
+    config.bonusImage = resolveMediaValue(config.bonusImage, media);
+    config.customPlayers = Array.isArray(config.customPlayers)
+      ? config.customPlayers.map(item => ({ ...item, src: resolveMediaValue(item?.src, media) }))
+      : [];
+    config.customTraffic = Array.isArray(config.customTraffic)
+      ? config.customTraffic.map(item => ({ ...item, src: resolveMediaValue(item?.src, media) }))
+      : [];
+    config.tasks = Array.isArray(config.tasks)
+      ? config.tasks.map(task => ({
+          ...task,
+          image: resolveMediaValue(task?.image, media),
+          audio: resolveMediaValue(task?.audio, media)
+        }))
+      : [];
+
+    return config;
+  }
+
+  async function fetchJsonWithTimeout(url, timeoutMs = 45000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+      if (!response.ok) throw new Error(`Сервер вернул ошибку ${response.status}`);
+      return await response.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function readGameConfig() {
+    if (EMBEDDED_CONFIG && typeof EMBEDDED_CONFIG === 'object') return EMBEDDED_CONFIG;
+
+    const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+    const inlineConfig = decodeGameConfig(hash.get('config'));
+    if (inlineConfig) return inlineConfig;
+
+    const params = new URLSearchParams(location.search);
+    const gameId = String(params.get('id') || '').trim();
+    if (!gameId) return {};
+
+    try {
+      const safeId = encodeURIComponent(gameId);
+      const node = await fetchJsonWithTimeout(`${FIREBASE_DATABASE_URL}/raceGames/${safeId}.json`);
+      if (!node || typeof node !== 'object' || !node.config) {
+        throw new Error('Игра не найдена или была удалена');
+      }
+      return hydrateServerConfig(node);
+    } catch (error) {
+      console.error('Не удалось загрузить игру с Firebase', error);
+      return { __loadError: error?.message || 'Не удалось загрузить игру с сервера' };
+    }
+  }
+
+  const GAME_CONFIG = await readGameConfig();
 
 
   const DIFFICULTY_MODE = GAME_CONFIG.difficultyMode === 'teacher' ? 'teacher' : 'student';
@@ -2537,6 +2605,7 @@
     }
 
     try {
+      if (GAME_CONFIG.__loadError) throw new Error(GAME_CONFIG.__loadError);
       await preload();
       resize();
       updateHud(0);
