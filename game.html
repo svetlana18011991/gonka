@@ -1912,16 +1912,29 @@
 
     const media = $('#quizMedia');
     media.innerHTML = '';
-    if (task.image) {
+    const taskImage = task.image || task.imageUrl || task.mediaImage || task.media?.image || '';
+    const taskAudio = task.audio || task.audioUrl || task.mediaAudio || task.media?.audio || '';
+    if (taskImage) {
       const image = document.createElement('img');
-      image.src = task.image;
-      image.alt = '';
+      image.src = taskImage;
+      image.alt = 'Иллюстрация к вопросу';
+      image.decoding = 'async';
+      image.loading = 'eager';
+      image.addEventListener('error', () => {
+        image.remove();
+        const error = document.createElement('div');
+        error.textContent = 'Не удалось показать картинку';
+        error.style.cssText = 'padding:8px 12px;border-radius:12px;background:rgba(255,93,108,.12);color:#ffbdc4;font-size:13px;';
+        media.prepend(error);
+      }, { once: true });
       media.appendChild(image);
     }
-    if (task.audio) {
+    if (taskAudio) {
       const audio = document.createElement('audio');
-      audio.src = task.audio;
+      audio.src = taskAudio;
       audio.controls = true;
+      audio.preload = 'metadata';
+      audio.setAttribute('playsinline', '');
       media.appendChild(audio);
     }
 
