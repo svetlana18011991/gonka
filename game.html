@@ -1137,9 +1137,10 @@
   };
 
   const DEFAULT_PLAYER_IDS = ASSETS.players.map(item => item.id);
+  const PLAYER_SELECTION_EXPLICIT = GAME_CONFIG.playerSelectionExplicit === true;
   const ENABLED_PLAYER_IDS = Array.isArray(GAME_CONFIG.enabledPlayerIds)
     ? GAME_CONFIG.enabledPlayerIds
-    : DEFAULT_PLAYER_IDS;
+    : (PLAYER_SELECTION_EXPLICIT ? [] : DEFAULT_PLAYER_IDS);
   const CUSTOM_PLAYERS = Array.isArray(GAME_CONFIG.customPlayers)
     ? GAME_CONFIG.customPlayers.filter(item => item && item.src)
     : [];
@@ -1157,7 +1158,10 @@
   if (!PLAYER_OPTIONS.length) PLAYER_OPTIONS.push(ASSETS.players[0]);
 
   const DEFAULT_TRAFFIC_IDS = ASSETS.traffic.map(item => item.id);
-  const ENABLED_TRAFFIC_IDS = Array.isArray(GAME_CONFIG.enabledTrafficIds) ? GAME_CONFIG.enabledTrafficIds : DEFAULT_TRAFFIC_IDS;
+  const TRAFFIC_SELECTION_EXPLICIT = GAME_CONFIG.trafficSelectionExplicit === true;
+  const ENABLED_TRAFFIC_IDS = Array.isArray(GAME_CONFIG.enabledTrafficIds)
+    ? GAME_CONFIG.enabledTrafficIds
+    : (TRAFFIC_SELECTION_EXPLICIT ? [] : DEFAULT_TRAFFIC_IDS);
   const CUSTOM_TRAFFIC = Array.isArray(GAME_CONFIG.customTraffic) ? GAME_CONFIG.customTraffic.filter(item => item && item.src) : [];
   const TRAFFIC_OPTIONS = [
     ...ASSETS.traffic.filter(item => ENABLED_TRAFFIC_IDS.includes(item.id)),
