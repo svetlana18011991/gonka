@@ -1431,10 +1431,10 @@
     state.player.image = image || state.player.image;
     state.player.rotation = spec?.rotation || 0;
 
-    const targetWidth = lanes.laneWidth * 0.61;
+    const targetWidth = lanes.laneWidth * 0.72;
     const ratio = image ? image.naturalHeight / image.naturalWidth : 1.8;
     state.player.width = targetWidth;
-    state.player.height = Math.min(state.H * 0.23, targetWidth * ratio);
+    state.player.height = Math.min(state.H * 0.27, targetWidth * ratio);
     state.player.y = state.H * 0.77 - state.player.height / 2;
 
     if (forceCenter || !Number.isFinite(state.player.x)) {
@@ -1869,7 +1869,7 @@
   function checkCollisions() {
     if (state.invulnerable > 0 || state.mode !== 'running') return;
 
-    const playerRect = insetRect(state.player, 0.24, 0.12);
+    const playerRect = insetRect(state.player, 0.20, 0.12);
 
     for (const obstacle of state.obstacles) {
       if (obstacle.kind === 'finish') {
