@@ -438,7 +438,11 @@ function securePublicGameUrl(){
   const base=current.protocol==='https:'?current:new URL(GENIALLY_FALLBACK_BASE);
   return new URL('game.html',base);
 }
-function serverGameUrl(id){const url=securePublicGameUrl();url.searchParams.set('id',id);url.searchParams.set('v','30');return url.href}
+function serverGameUrl(id){const url=securePublicGameUrl();url.searchParams.set('id',id);url.searchParams.set('v','31');return url.href}
+function buildGeniallyIframeCode(url){
+  const safeUrl=String(url).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+  return `<iframe src="${safeUrl}" width="100%" height="700" style="width:100%;height:700px;border:0;display:block;background:#07101e" frameborder="0" scrolling="no" loading="eager" allow="autoplay; fullscreen" allowfullscreen title="Учебная гонка"></iframe>`;
+}
 async function saveRaceToFirebase(mode='new'){
   syncSettings();
   if(!raceDb)throw new Error('Firebase не подключился. Проверь интернет и обнови страницу.');
@@ -811,7 +815,7 @@ function buildProjectFilePayload(){
     kind:PROJECT_FILE_KIND,
     version:PROJECT_FILE_VERSION,
     savedAt:new Date().toISOString(),
-    editorVersion:'v30',
+    editorVersion:'v31',
     currentGameId:Editor.currentGameId||'',
     config:structuredClone(Editor.config)
   };
@@ -858,31 +862,33 @@ $('projectFileInput').onchange=async event=>{
     setCurrentGameId(/^race_[a-z0-9]+$/i.test(currentGameId)?currentGameId:'');
     Editor.draft=null;Editor.editingId=null;Editor.dragId=null;
     fillSettings();renderList();translateEditorTree();setEditorTab('game');saveLocal();updateProjectSize();updatePreview();
-    toast(localizedText({ru:Editor.currentGameId?'Файл загружен. Можно обновить связанную игру или создать новую.':'Файл загружен. При публикации выбери «Новая игра».',en:Editor.currentGameId?'File loaded. You can update the linked game or create a new one.':'File loaded. Choose “New game” when publishing.',zh:Editor.currentGameId?'文件已加载。可以更新关联游戏或创建新游戏。':'文件已加载。发布时请选择“新游戏”。',de:Editor.currentGameId?'Datei geladen. Das verknüpfte Spiel kann aktualisiert oder neu veröffentlicht werden.':'Datei geladen. Wähle beim Veröffentlichen „Neues Spiel“.',fr:Editor.currentGameId?'Fichier chargé. Vous pouvez mettre à jour le jeu lié ou en créer un nouveau.':'Fichier chargé. Choisissez « Nouveau jeu » lors de la publication.',ko:Editor.currentGameId?'파일을 불러왔습니다. 연결된 게임을 업데이트하거나 새 게임을 만들 수 있습니다.':'파일을 불러왔습니다. 게시할 때 “새 게임”을 선택하세요.'}));
+    toast(localizedText({ru:'Файл загружен. При копировании будет создан новый код игры.',en:'File loaded. Copying will create a new game code.',zh:'文件已加载。复制时将创建新的游戏代码。',de:'Datei geladen. Beim Kopieren wird ein neuer Spielcode erstellt.',fr:'Fichier chargé. La copie créera un nouveau code de jeu.',ko:'파일을 불러왔습니다. 복사하면 새 게임 코드가 생성됩니다.'}));
   }catch(error){console.error(error);toast(error instanceof SyntaxError?localizedText({ru:'Файл повреждён или имеет неверный формат.',en:'The file is damaged or has an invalid format.',zh:'文件已损坏或格式无效。',de:'Die Datei ist beschädigt oder hat ein ungültiges Format.',fr:'Le fichier est endommagé ou son format est incorrect.',ko:'파일이 손상되었거나 형식이 올바르지 않습니다.'}):(error?.message||'Не удалось загрузить файл'))}
   finally{input.value='';button.disabled=false;button.textContent=oldText;updateTopActionLabels()}
 };
 $('resetAll').onclick=()=>{if(!confirm('Сбросить все настройки, оформление, загруженные изображения и вопросы?'))return;localStorage.removeItem(STORAGE_KEY);localStorage.removeItem(CURRENT_GAME_KEY);PREVIOUS_STORAGE_KEYS.forEach(key=>localStorage.removeItem(key));Editor.config=defaultConfig();Editor.currentGameId='';Editor.draft=null;Editor.editingId=null;fillSettings();renderList();setEditorTab('game');updateProjectSize();updatePreview();toast('Редактор сброшен')};
 $('copyCode').onclick=async()=>{
-  const mode=await choosePublishMode();
-  if(!mode)return;
   const button=$('copyCode');
   const oldText=button.textContent;
   try{
     saveLocal();
     button.disabled=true;
-    button.textContent=mode==='update'?'⏳ Обновляю игру…':'⏳ Создаю новую игру…';
-    const saved=await saveRaceToFirebase(mode);
-    const code=`<iframe src="${saved.url}" width="100%" height="700" frameborder="0" allow="autoplay; fullscreen" allowfullscreen></iframe>`;
-    const action=mode==='update'?'Игра обновлена':'Новая игра сохранена';
-    const mediaNote=saved.mediaStats.reused?` · повторно использовано файлов: ${saved.mediaStats.reused}`:'';
+    button.textContent=localizedText({ru:'⏳ Создаю игру…',en:'⏳ Creating game…',zh:'⏳ 正在创建游戏…',de:'⏳ Spiel wird erstellt…',fr:'⏳ Création du jeu…',ko:'⏳ 게임 생성 중…'});
+    // Каждое нажатие создаёт отдельный ID. Одинаковые медиафайлы повторно не загружаются.
+    const saved=await saveRaceToFirebase('new');
+    const code=buildGeniallyIframeCode(saved.url);
     const copied=await copyText(code);
-    showCodeModal(code,saved.url,copied);
-    toast(copied?`${action}, код скопирован${mediaNote}`:`${action}. Нажми «Скопировать код»${mediaNote}`);
+    const mediaNote=saved.mediaStats.reused?` · повторно использовано файлов: ${saved.mediaStats.reused}`:'';
+    if(copied){
+      toast(localizedText({ru:`Игра создана, код скопирован${mediaNote}. В Genially проверяй через «Present».`,en:`Game created and code copied${mediaNote}. Check it in Genially using “Present”.`,zh:`游戏已创建，代码已复制${mediaNote}。请在 Genially 中使用“Present”检查。`,de:`Spiel erstellt und Code kopiert${mediaNote}. Prüfe es in Genially über „Present“.`,fr:`Jeu créé et code copié${mediaNote}. Vérifiez-le dans Genially avec « Present ».`,ko:`게임이 생성되고 코드가 복사되었습니다${mediaNote}. Genially의 “Present”에서 확인하세요.`}));
+    }else{
+      showCodeModal(code,saved.url,false);
+      toast(localizedText({ru:'Игра создана. Браузер не дал скопировать автоматически — нажми кнопку в открытом окне.',en:'Game created. The browser blocked automatic copying—use the button in the open window.',zh:'游戏已创建。浏览器阻止了自动复制，请使用打开窗口中的按钮。',de:'Spiel erstellt. Der Browser blockierte das automatische Kopieren – nutze die Schaltfläche im geöffneten Fenster.',fr:'Jeu créé. Le navigateur a bloqué la copie automatique : utilisez le bouton dans la fenêtre ouverte.',ko:'게임이 생성되었습니다. 브라우저가 자동 복사를 차단했으므로 열린 창의 버튼을 사용하세요.'}));
+    }
   }catch(error){
     console.error(error);
     toast(error?.message||'Не удалось сохранить игру на Firebase');
-  }finally{button.disabled=false;button.textContent=oldText}
+  }finally{button.disabled=false;button.textContent=oldText;updateTopActionLabels()}
 };
 $('copyCode').ondblclick=null;
 const STANDALONE_ENVIRONMENT_FILES={
