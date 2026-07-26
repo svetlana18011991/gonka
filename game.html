@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Educational Race v33 -->
+<!-- Educational Race v35 -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -1595,7 +1595,9 @@
 
     const level = LEVELS[state.level];
     const roadSpeed = level.speed * state.speedMultiplier;
-    const gateActive = state.obstacles.some(obstacle => obstacle.kind === 'lessonGate');
+    const gateActive = state.obstacles.some(obstacle =>
+      obstacle.kind === 'lessonGate' || obstacle.forcedEncounter === true
+    );
 
     state.distance += roadSpeed * dt * 0.045;
     state.invulnerable = Math.max(0, state.invulnerable - dt);
@@ -1764,45 +1766,96 @@
 
   function spawnLessonGate() {
     const lanes = laneData();
+    const level = LEVELS[state.level];
+    const encounterId = `enc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const playerCenter = state.player.x + state.player.width / 2;
+    const playerLane = nearestLaneIndex(playerCenter, lanes.centers);
 
-    // Убираем только входящий верхний трафик, чтобы случайная машина
-    // не наложилась на обязательную группу.
+    // Вместо заметной «стены» очищаем только верхнюю часть трассы и создаём
+    // естественную дорожную ситуацию: один объект перехватывает игрока,
+    // а остальные постепенно сужают свободный коридор.
     state.obstacles = state.obstacles.filter(obstacle =>
-      obstacle.kind !== 'traffic' || obstacle.y > state.H * 0.62
+      obstacle.kind !== 'traffic' || obstacle.y > state.H * 0.70
     );
-    state.collectibles = state.collectibles.filter(item => item.y > state.H * 0.62);
+    state.collectibles = state.collectibles.filter(item => item.y > state.H * 0.66);
 
-    const offsets = [0.00, 0.34, 0.14, 0.48, 0.25];
-    const gateCars = [];
-    let maxBottom = 0;
-
-    for (let lane = 0; lane < lanes.laneCount; lane++) {
-      const spec = TRAFFIC_OPTIONS[lane % TRAFFIC_OPTIONS.length];
+    const createEncounterTraffic = (spec, lane, y, role, options = {}) => {
       const image = loaded.traffic.get(spec.id);
-      const width = lanes.laneWidth * Math.min(.76, Math.max(.58, spec.scale || .68));
+      if (!image) return null;
+      const width = lanes.laneWidth * Math.min(.82, Math.max(.58, spec.scale || .70));
       const ratio = image.naturalHeight / image.naturalWidth;
-      const height = Math.min(state.H * 0.27, width * ratio);
-      const offsetY = offsets[lane] * lanes.laneWidth;
-      maxBottom = Math.max(maxBottom, offsetY + height);
-
-      gateCars.push({
+      const height = Math.min(state.H * 0.30, width * ratio);
+      return {
+        kind: 'traffic',
+        lane,
         image,
-        rotation: spec?.rotation || 0,
-        centerX: lanes.centers[lane],
+        x: lanes.centers[lane] - width / 2,
+        y,
         width,
         height,
-        offsetY
-      });
-    }
+        extraSpeed: options.extraSpeed ?? .88,
+        sway: 0,
+        swayTime: 0,
+        aggressive: false,
+        followSpeed: level.followSpeed,
+        rotation: spec.rotation || 0,
+        hitScale: (spec.scale || .72) >= .86 ? .88 : .76,
+        forcedEncounter: true,
+        encounterId,
+        encounterRole: role,
+        encounterAge: 0,
+        encounterDelay: options.delay ?? 0,
+        targetLane: options.targetLane ?? lane,
+        approachSide: options.approachSide ?? 0,
+        cutCommitted: false
+      };
+    };
 
-    state.obstacles.push({
-      kind: 'lessonGate',
-      x: lanes.left,
-      y: -maxBottom - 35,
-      width: lanes.right - lanes.left,
-      height: maxBottom,
-      gateCars
-    });
+    const laneIndexes = Array.from({ length: lanes.laneCount }, (_, index) => index);
+    const farLanes = laneIndexes.filter(lane => Math.abs(lane - playerLane) >= Math.max(1, Math.floor(lanes.laneCount / 2)));
+    const hunterLane = (farLanes.length ? farLanes : laneIndexes.filter(lane => lane !== playerLane))[
+      Math.floor(Math.random() * Math.max(1, (farLanes.length ? farLanes : laneIndexes.filter(lane => lane !== playerLane)).length))
+    ] ?? playerLane;
+
+    const hunterSpec = weightedTraffic();
+    const hunter = createEncounterTraffic(
+      hunterSpec,
+      hunterLane,
+      -state.H * (0.20 + Math.random() * 0.09),
+      'hunter',
+      { extraSpeed: .82, delay: .42 + Math.random() * .28, approachSide: hunterLane < playerLane ? -1 : 1 }
+    );
+    if (hunter) state.obstacles.push(hunter);
+
+    // Два разных сценария создают ощущение обычного движения, а не заранее
+    // построенной линии. На лёгком уровне препятствий меньше.
+    const scenario = Math.random() < .55 ? 'funnel' : 'cutoff';
+    const blockerCount = state.level === 'easy' ? 1 : 2;
+    const candidates = shuffle(laneIndexes.filter(lane => lane !== hunterLane));
+
+    for (let index = 0; index < Math.min(blockerCount, candidates.length); index++) {
+      let lane = candidates[index];
+      if (scenario === 'funnel' && lanes.laneCount >= 3) {
+        const side = index % 2 === 0 ? -1 : 1;
+        lane = clamp(playerLane + side, 0, lanes.laneCount - 1);
+        if (lane === hunterLane && candidates[index] !== undefined) lane = candidates[index];
+      }
+      const spec = TRAFFIC_OPTIONS[(Math.floor(Math.random() * TRAFFIC_OPTIONS.length) + index) % TRAFFIC_OPTIONS.length];
+      const role = scenario === 'cutoff' && index === 0 ? 'cutoff' : 'blocker';
+      const obstacle = createEncounterTraffic(
+        spec,
+        lane,
+        -state.H * (0.42 + index * 0.20 + Math.random() * 0.08),
+        role,
+        {
+          extraSpeed: .74 + index * .08,
+          delay: .75 + index * .24,
+          targetLane: role === 'cutoff' ? playerLane : lane,
+          approachSide: lane < playerLane ? -1 : 1
+        }
+      );
+      if (obstacle) state.obstacles.push(obstacle);
+    }
 
     state.spawnTimer = 0;
     state.collectibleTimer = 0;
@@ -1842,7 +1895,74 @@
 
       if (obstacle.kind !== 'traffic') continue;
 
-      if (obstacle.aggressive && obstacle.y < state.H * 0.54) {
+      if (obstacle.forcedEncounter) {
+        obstacle.encounterAge = (obstacle.encounterAge || 0) + dt;
+        const playerCenter = state.player.x + state.player.width / 2;
+        const playerTargetX = clamp(
+          playerCenter - obstacle.width / 2,
+          lanes.left + 3,
+          lanes.right - obstacle.width - 3
+        );
+        const verticalProgress = clamp((obstacle.y + obstacle.height) / Math.max(1, state.player.y), 0, 1);
+
+        if (obstacle.encounterRole === 'hunter' && obstacle.encounterAge > obstacle.encounterDelay) {
+          // Сначала объект только слегка смещается, затем всё увереннее
+          // перехватывает направление игрока. Перед столкновением он уже
+          // реагирует быстро, поэтому убежать в последнюю секунду трудно.
+          const anticipation = obstacle.approachSide * lanes.laneWidth * (0.10 - verticalProgress * 0.08);
+          const targetX = clamp(
+            playerTargetX + anticipation,
+            lanes.left + 3,
+            lanes.right - obstacle.width - 3
+          );
+          const trackingRate = obstacle.followSpeed * (0.62 + verticalProgress * 2.25);
+          const maxMove = lanes.laneWidth * trackingRate * dt;
+          obstacle.x += clamp(targetX - obstacle.x, -maxMove, maxMove);
+          obstacle.extraSpeed = Math.max(obstacle.extraSpeed, .84 + verticalProgress * .48);
+
+          // На последнем участке перехват становится точным, но остаётся
+          // визуально плавным — без телепортации и резкого скачка.
+          if (obstacle.y + obstacle.height > state.player.y - state.H * .13) {
+            obstacle.x += (playerTargetX - obstacle.x) * Math.min(1, dt * 11);
+            obstacle.extraSpeed = Math.max(obstacle.extraSpeed, 1.22);
+          }
+        } else if (obstacle.encounterRole === 'cutoff' && obstacle.encounterAge > obstacle.encounterDelay) {
+          // Объект некоторое время едет обычно, а когда ребёнок уже выбрал
+          // направление ухода, начинает перестраиваться в свободный коридор.
+          const currentPlayerLane = nearestLaneIndex(playerCenter, lanes.centers);
+          if (!obstacle.cutCommitted || verticalProgress < .48) {
+            obstacle.targetLane = currentPlayerLane;
+            obstacle.cutCommitted = verticalProgress > .34;
+          }
+          const laneTargetX = clamp(
+            lanes.centers[obstacle.targetLane] - obstacle.width / 2,
+            lanes.left + 3,
+            lanes.right - obstacle.width - 3
+          );
+          const maxMove = lanes.laneWidth * (.52 + verticalProgress * 1.15) * dt;
+          obstacle.x += clamp(laneTargetX - obstacle.x, -maxMove, maxMove);
+          obstacle.extraSpeed = Math.max(obstacle.extraSpeed, .80 + verticalProgress * .30);
+        } else if (obstacle.encounterRole === 'blocker') {
+          // Блокировщики не стоят ровной стеной: они идут с разной скоростью
+          // и чуть смещаются к центру выбранного коридора.
+          const laneTargetX = clamp(
+            lanes.centers[obstacle.targetLane] - obstacle.width / 2,
+            lanes.left + 3,
+            lanes.right - obstacle.width - 3
+          );
+          obstacle.x += (laneTargetX - obstacle.x) * Math.min(1, dt * 2.4);
+        }
+
+        obstacle.x = clamp(
+          obstacle.x,
+          lanes.left + 3,
+          lanes.right - obstacle.width - 3
+        );
+        obstacle.lane = nearestLaneIndex(
+          obstacle.x + obstacle.width / 2,
+          lanes.centers
+        );
+      } else if (obstacle.aggressive && obstacle.y < state.H * 0.54) {
         const playerCenter = state.player.x + state.player.width / 2;
         const targetX = clamp(
           playerCenter - obstacle.width / 2,
@@ -2245,7 +2365,11 @@
       closeScratch(true);
       quizOverlay.classList.add('hidden');
       const hit = state.activeCollision;
-      if (hit) state.obstacles = state.obstacles.filter(obstacle => obstacle !== hit);
+      if (hit?.encounterId) {
+        state.obstacles = state.obstacles.filter(obstacle => obstacle.encounterId !== hit.encounterId);
+      } else if (hit) {
+        state.obstacles = state.obstacles.filter(obstacle => obstacle !== hit);
+      }
       state.activeCollision = null;
       state.currentTask = null;
       state.invulnerable = 2.0;
