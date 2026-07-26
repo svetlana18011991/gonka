@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Educational Race v34 -->
+<!-- Educational Race v34.1 — traffic preserved before forced collision -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -1765,13 +1765,8 @@
   function spawnLessonGate() {
     const lanes = laneData();
 
-    // Убираем только входящий верхний трафик, чтобы случайная машина
-    // не наложилась на обязательную группу.
-    state.obstacles = state.obstacles.filter(obstacle =>
-      obstacle.kind !== 'traffic' || obstacle.y > state.H * 0.62
-    );
-    state.collectibles = state.collectibles.filter(item => item.y > state.H * 0.62);
-
+    // Уже находящиеся на трассе объекты не удаляем. Обязательная группа
+    // появляется выше них и входит в игру только после обычного движения.
     const offsets = [0.00, 0.34, 0.14, 0.48, 0.25];
     const gateCars = [];
     let maxBottom = 0;
@@ -1795,10 +1790,24 @@
       });
     }
 
+    const incomingY = [
+      ...state.obstacles
+        .filter(obstacle => obstacle.kind === 'traffic' && Number.isFinite(obstacle.y))
+        .map(obstacle => obstacle.y),
+      ...state.collectibles
+        .filter(item => Number.isFinite(item.y))
+        .map(item => item.y - (item.radius || 0))
+    ];
+    const nearestIncomingY = incomingY.length ? Math.min(...incomingY) : Infinity;
+    const safeGap = Math.max(42, lanes.laneWidth * 0.55);
+    const gateY = Number.isFinite(nearestIncomingY)
+      ? Math.min(-maxBottom - 35, nearestIncomingY - maxBottom - safeGap)
+      : -maxBottom - 35;
+
     state.obstacles.push({
       kind: 'lessonGate',
       x: lanes.left,
-      y: -maxBottom - 35,
+      y: gateY,
       width: lanes.right - lanes.left,
       height: maxBottom,
       gateCars
