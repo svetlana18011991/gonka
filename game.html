@@ -1,10 +1,12 @@
 <!doctype html>
-<!-- Educational Race v30 -->
+<!-- Educational Race v33 -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
   <title>Учебная гонка</title>
+  <script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.1/firebase-database-compat.js"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -810,7 +812,32 @@
   }
 
   const FIREBASE_DATABASE_URL = 'https://shkatulka-games-default-rtdb.firebaseio.com';
+  const FIREBASE_CONFIG = {
+    apiKey: 'AIzaSyCgdd6XECishFQr8at6csp-pVeLsruDfK4',
+    authDomain: 'shkatulka-games.firebaseapp.com',
+    databaseURL: FIREBASE_DATABASE_URL,
+    projectId: 'shkatulka-games',
+    storageBucket: 'shkatulka-games.firebasestorage.app',
+    messagingSenderId: '1090190974514',
+    appId: '1:1090190974514:web:b4e017ec633d6c9057262b'
+  };
   const SHARED_MEDIA_PREFIX = '@shared:';
+  const IS_EMBEDDED = window.self !== window.top;
+  let firebaseDb = null;
+
+  try {
+    if (window.firebase?.initializeApp) {
+      if (!window.firebase.apps?.length) window.firebase.initializeApp(FIREBASE_CONFIG);
+      // В редакторе Genially WebSocket может быть приостановлен. Long polling
+      // используется в «Игровом автомате» и стабильнее работает внутри iframe.
+      if (window.firebase.database?.INTERNAL?.forceLongPolling) {
+        window.firebase.database.INTERNAL.forceLongPolling();
+      }
+      firebaseDb = window.firebase.database();
+    }
+  } catch (error) {
+    console.warn('Firebase SDK не инициализировался, будет использован REST', error);
+  }
 
   function getNestedValue(source, path) {
     return String(path || '').split('/').filter(Boolean).reduce((value, key) => {
@@ -848,7 +875,7 @@
       });
     }
     const entries = await Promise.all([...hashes].map(async hash => {
-      const node = await fetchJsonWithTimeout(`${FIREBASE_DATABASE_URL}/raceMedia/${hash}.json`);
+      const node = await readFirebasePath(`raceMedia/${hash}`);
       if (!node || typeof node.data !== 'string' || !/^data:(?:image|audio)\//i.test(node.data)) {
         throw new Error('Не удалось загрузить один из медиафайлов игры');
       }
@@ -903,6 +930,42 @@
     }
   }
 
+  function sdkValueWithTimeout(path, timeoutMs = 18000) {
+    if (!firebaseDb) return Promise.reject(new Error('Firebase SDK недоступен'));
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Firebase SDK: превышено время ожидания')), timeoutMs);
+      firebaseDb.ref(path).once('value').then(snapshot => {
+        clearTimeout(timer);
+        resolve(snapshot.exists() ? snapshot.val() : null);
+      }).catch(error => {
+        clearTimeout(timer);
+        reject(error);
+      });
+    });
+  }
+
+  async function readFirebasePath(path) {
+    const cleanPath = String(path || '').replace(/^\/+|\/+$/g, '');
+    const restUrl = `${FIREBASE_DATABASE_URL}/${cleanPath}.json`;
+
+    // На обычной странице REST быстрее. Внутри Genially сначала используем
+    // SDK с принудительным long polling, как в рабочем «Игровом автомате».
+    const readers = IS_EMBEDDED
+      ? [() => sdkValueWithTimeout(cleanPath), () => fetchJsonWithTimeout(restUrl)]
+      : [() => fetchJsonWithTimeout(restUrl), () => sdkValueWithTimeout(cleanPath)];
+
+    let lastError = null;
+    for (const read of readers) {
+      try {
+        return await read();
+      } catch (error) {
+        lastError = error;
+        console.warn('Способ загрузки Firebase не сработал, пробую резервный', error);
+      }
+    }
+    throw lastError || new Error('Не удалось прочитать данные Firebase');
+  }
+
   async function readGameConfig() {
     if (EMBEDDED_CONFIG && typeof EMBEDDED_CONFIG === 'object') return EMBEDDED_CONFIG;
 
@@ -915,8 +978,9 @@
     if (!gameId) return {};
 
     try {
-      const safeId = encodeURIComponent(gameId);
-      const node = await fetchJsonWithTimeout(`${FIREBASE_DATABASE_URL}/raceGames/${safeId}.json`);
+      const safeId = gameId.replace(/[^a-zA-Z0-9_-]/g, '');
+      if (!safeId) throw new Error('Некорректный ID игры');
+      const node = await readFirebasePath(`raceGames/${safeId}`);
       if (!node || typeof node !== 'object' || !node.config) {
         throw new Error('Игра не найдена или была удалена');
       }
