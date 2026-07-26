@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Educational Race v37 -->
+<!-- Educational Race v34 -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -1595,9 +1595,7 @@
 
     const level = LEVELS[state.level];
     const roadSpeed = level.speed * state.speedMultiplier;
-    const gateActive = state.obstacles.some(obstacle =>
-      obstacle.kind === 'lessonGate' || obstacle.forcedEncounter === true
-    );
+    const gateActive = state.obstacles.some(obstacle => obstacle.kind === 'lessonGate');
 
     state.distance += roadSpeed * dt * 0.045;
     state.invulnerable = Math.max(0, state.invulnerable - dt);
@@ -1633,9 +1631,8 @@
       state.lessonTimer >= level.forceAfter &&
       !gateActive
     ) {
-      if (spawnLessonGate()) {
-        state.lessonTimer = -999;
-      }
+      spawnLessonGate();
+      state.lessonTimer = -999;
     }
 
     checkCollectibles();
@@ -1720,12 +1717,7 @@
       aggressive,
       followSpeed: level.followSpeed,
       rotation: spec.rotation || 0,
-      hitScale: (spec.scale || .72) >= .86 ? 0.88 : 0.74,
-      trafficAge: 0,
-      laneChange: null,
-      nextLaneDecision: 1.3 + Math.random() * 1.8,
-      laneDecisionCount: 0,
-      maxLaneDecisions: aggressive ? (state.level === 'hard' ? 2 : 1) : 0
+      hitScale: (spec.scale || .72) >= .86 ? 0.88 : 0.74
     });
   }
 
@@ -1772,98 +1764,48 @@
 
   function spawnLessonGate() {
     const lanes = laneData();
-    const level = LEVELS[state.level];
-    if (!TRAFFIC_OPTIONS.length) return false;
 
-    const encounterId = `enc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-
-    // Уже едущие объекты не удаляем и не переставляем. Заслонка появляется
-    // далеко сверху, за всем видимым транспортом.
-    const existingTraffic = state.obstacles.filter(obstacle => obstacle.kind === 'traffic');
-    const topMostY = existingTraffic.length
-      ? Math.min(...existingTraffic.map(obstacle => obstacle.y))
-      : 0;
-    const baseY = Math.min(-state.H * 0.22, topMostY - state.H * 0.24);
-
-    // В каждой полосе появляется один объект. Порядок высот выбирается
-    // случайно: диагональ, обратная диагональ или мягкий зигзаг.
-    // Смещения небольшие, поэтому соседние зоны столкновения перекрываются
-    // и между объектами нельзя прошмыгнуть.
-    const patternType = Math.floor(Math.random() * 3);
-    const direction = Math.random() < .5 ? 1 : -1;
-    const centerIndex = (lanes.laneCount - 1) / 2;
-    const stepY = Math.min(
-      state.player.height * 0.28,
-      lanes.laneWidth * 0.24,
-      state.H * 0.035
+    // Убираем только входящий верхний трафик, чтобы случайная машина
+    // не наложилась на обязательную группу.
+    state.obstacles = state.obstacles.filter(obstacle =>
+      obstacle.kind !== 'traffic' || obstacle.y > state.H * 0.62
     );
+    state.collectibles = state.collectibles.filter(item => item.y > state.H * 0.62);
 
-    const offsets = Array.from({ length: lanes.laneCount }, (_, lane) => {
-      if (patternType === 0) {
-        return (lane - centerIndex) * stepY * direction;
-      }
-      if (patternType === 1) {
-        const zigzag = lane % 2 === 0 ? -0.55 : 0.55;
-        return zigzag * stepY + (lane - centerIndex) * stepY * 0.16 * direction;
-      }
-      const distanceFromCenter = Math.abs(lane - centerIndex);
-      return (distanceFromCenter - centerIndex * 0.45) * stepY * direction;
-    });
+    const offsets = [0.00, 0.34, 0.14, 0.48, 0.25];
+    const gateCars = [];
+    let maxBottom = 0;
 
-    // Вся заслонка движется с одной скоростью, поэтому её форма не распадается.
-    const encounterSpeed = .84 + Math.random() * .055;
-    const shuffledSpecs = shuffle([...TRAFFIC_OPTIONS]);
-
-    let spawned = 0;
     for (let lane = 0; lane < lanes.laneCount; lane++) {
-      const spec = shuffledSpecs[lane % shuffledSpecs.length] || weightedTraffic();
+      const spec = TRAFFIC_OPTIONS[lane % TRAFFIC_OPTIONS.length];
       const image = loaded.traffic.get(spec.id);
-      if (!image) continue;
-
-      // Объект почти заполняет полосу, но визуально не наезжает на соседний.
-      const width = lanes.laneWidth * Math.min(.97, Math.max(.88, spec.scale || .92));
+      const width = lanes.laneWidth * Math.min(.76, Math.max(.58, spec.scale || .68));
       const ratio = image.naturalHeight / image.naturalWidth;
-      const height = Math.min(state.H * 0.31, width * ratio);
-      const x = lanes.centers[lane] - width / 2;
+      const height = Math.min(state.H * 0.27, width * ratio);
+      const offsetY = offsets[lane] * lanes.laneWidth;
+      maxBottom = Math.max(maxBottom, offsetY + height);
 
-      state.obstacles.push({
-        kind: 'traffic',
-        lane,
+      gateCars.push({
         image,
-        x,
-        y: baseY + offsets[lane],
+        rotation: spec?.rotation || 0,
+        centerX: lanes.centers[lane],
         width,
         height,
-        extraSpeed: encounterSpeed,
-        sway: 0,
-        swayTime: 0,
-        aggressive: false,
-        followSpeed: level.followSpeed,
-        rotation: spec.rotation || 0,
-        hitScale: .95,
-        forcedEncounter: true,
-        encounterId,
-        encounterRole: 'barrier',
-        encounterAge: 0,
-        trafficAge: 0,
-        adaptiveLaneChange: false,
-        laneChange: null,
-        nextLaneDecision: Infinity,
-        laneDecisionCount: 0,
-        maxLaneDecisions: 0,
-
-        // Для очень вытянутых или плоских пользовательских картинок зона
-        // остаётся достаточно плотной, чтобы между полосами не было лазейки.
-        forcedHitWidth: lanes.laneWidth * .99,
-        forcedHitHeight: Math.max(height * .82, state.player.height * .78)
+        offsetY
       });
-      spawned += 1;
     }
 
-    if (!spawned) return false;
+    state.obstacles.push({
+      kind: 'lessonGate',
+      x: lanes.left,
+      y: -maxBottom - 35,
+      width: lanes.right - lanes.left,
+      height: maxBottom,
+      gateCars
+    });
+
     state.spawnTimer = 0;
     state.collectibleTimer = 0;
-    return true;
   }
 
   function spawnFinishLine() {
@@ -1887,87 +1829,8 @@
     showToast(gt('Все задания выполнены — финиш впереди!'));
   }
 
-  function trafficLaneIsClear(targetLane, obstacle, lanes) {
-    const obstacleCenterY = obstacle.y + obstacle.height / 2;
-    return !state.obstacles.some(other => {
-      if (other === obstacle || other.kind !== 'traffic') return false;
-      const otherLane = nearestLaneIndex(other.x + other.width / 2, lanes.centers);
-      if (otherLane !== targetLane) return false;
-      const otherCenterY = other.y + other.height / 2;
-      const safeGap = Math.max(obstacle.height, other.height) * 1.35;
-      return Math.abs(otherCenterY - obstacleCenterY) < safeGap;
-    });
-  }
-
-  function beginNaturalLaneChange(obstacle, targetLane, lanes) {
-    if (targetLane === obstacle.lane || obstacle.laneChange) return false;
-    if (!trafficLaneIsClear(targetLane, obstacle, lanes)) return false;
-
-    const baseDuration = state.level === 'easy' ? 2.75 : state.level === 'medium' ? 2.4 : 2.1;
-    obstacle.laneChange = {
-      fromX: obstacle.x,
-      toX: clamp(
-        lanes.centers[targetLane] - obstacle.width / 2,
-        lanes.left + 3,
-        lanes.right - obstacle.width - 3
-      ),
-      targetLane,
-      elapsed: 0,
-      duration: baseDuration + Math.random() * .45
-    };
-    return true;
-  }
-
-  function advanceNaturalLaneChange(obstacle, dt) {
-    const change = obstacle.laneChange;
-    if (!change) return false;
-
-    change.elapsed += dt;
-    const progress = clamp(change.elapsed / change.duration, 0, 1);
-    const smooth = progress * progress * (3 - 2 * progress);
-    obstacle.x = change.fromX + (change.toX - change.fromX) * smooth;
-
-    if (progress >= 1) {
-      obstacle.x = change.toX;
-      obstacle.lane = change.targetLane;
-      obstacle.laneChange = null;
-    }
-    return true;
-  }
-
-  function maybePlanNaturalLaneChange(obstacle, age, lanes) {
-    if (obstacle.laneChange) return;
-    if ((obstacle.laneDecisionCount || 0) >= (obstacle.maxLaneDecisions || 0)) return;
-    if (age < (obstacle.nextLaneDecision || Infinity)) return;
-
-    // Перестроение разрешено только пока объект далеко впереди. Рядом с
-    // игроком курс уже не меняется — поэтому никаких резких «налётов» нет.
-    const safeDecisionLine = state.player.y - state.H * 0.34;
-    if (obstacle.y + obstacle.height >= safeDecisionLine) return;
-
-    const currentLane = nearestLaneIndex(obstacle.x + obstacle.width / 2, lanes.centers);
-    const playerLane = nearestLaneIndex(
-      state.player.x + state.player.width / 2,
-      lanes.centers
-    );
-
-    if (currentLane === playerLane) {
-      obstacle.nextLaneDecision = age + 1.2 + Math.random() * 1.2;
-      return;
-    }
-
-    // Только один соседний ряд за одно перестроение. Направление выбирается
-    // по положению ученика в этот момент, но затем объект уже не «прилипает» к нему.
-    const targetLane = currentLane + Math.sign(playerLane - currentLane);
-    if (beginNaturalLaneChange(obstacle, targetLane, lanes)) {
-      obstacle.laneDecisionCount = (obstacle.laneDecisionCount || 0) + 1;
-    }
-    obstacle.nextLaneDecision = age + 1.35 + Math.random() * 1.25;
-  }
-
   function updateObstacles(dt, roadSpeed) {
     const lanes = laneData();
-    const hadForcedEncounter = state.obstacles.some(obstacle => obstacle.forcedEncounter === true);
 
     for (const obstacle of state.obstacles) {
       if (obstacle.kind === 'finish') {
@@ -1978,18 +1841,20 @@
       obstacle.y += roadSpeed * (obstacle.kind === 'lessonGate' ? 1.0 : obstacle.extraSpeed) * dt;
 
       if (obstacle.kind !== 'traffic') continue;
-      obstacle.trafficAge = (obstacle.trafficAge || 0) + dt;
 
-      if (obstacle.forcedEncounter) {
-        // Обязательная заслонка сохраняет выбранную ступенчатую форму:
-        // никаких резких перестроений и наведения на игрока.
-        obstacle.encounterAge = (obstacle.encounterAge || 0) + dt;
-      } else if (obstacle.aggressive) {
-        // Обычный «активный» транспорт тоже больше не следит за игроком
-        // непрерывно. Он может один раз плавно перестроиться далеко впереди.
-        if (!advanceNaturalLaneChange(obstacle, dt)) {
-          maybePlanNaturalLaneChange(obstacle, obstacle.trafficAge, lanes);
-        }
+      if (obstacle.aggressive && obstacle.y < state.H * 0.54) {
+        const playerCenter = state.player.x + state.player.width / 2;
+        const targetX = clamp(
+          playerCenter - obstacle.width / 2,
+          lanes.left + 3,
+          lanes.right - obstacle.width - 3
+        );
+        const maxMove = lanes.laneWidth * obstacle.followSpeed * dt;
+        obstacle.x += clamp(targetX - obstacle.x, -maxMove, maxMove);
+        obstacle.lane = nearestLaneIndex(
+          obstacle.x + obstacle.width / 2,
+          lanes.centers
+        );
       } else if (obstacle.sway) {
         obstacle.swayTime += dt;
         if (obstacle.swayTime > 1.4 && Math.random() < dt * 0.35) {
@@ -2002,40 +1867,11 @@
           lanes.right - obstacle.width - 3
         );
       }
-
-      obstacle.x = clamp(
-        obstacle.x,
-        lanes.left + 3,
-        lanes.right - obstacle.width - 3
-      );
-      obstacle.lane = nearestLaneIndex(
-        obstacle.x + obstacle.width / 2,
-        lanes.centers
-      );
     }
 
     state.obstacles = state.obstacles.filter(obstacle =>
       obstacle.y < state.H + obstacle.height + 100
     );
-
-    const hasForcedEncounter = state.obstacles.some(obstacle => obstacle.forcedEncounter === true);
-    if (
-      hadForcedEncounter &&
-      !hasForcedEncounter &&
-      state.mode === 'running' &&
-      state.forceMode === 'on' &&
-      state.taskQueue.length &&
-      !state.finishMode &&
-      !state.activeCollision
-    ) {
-      // Волна прошла без аварии — ничего не телепортируем. Через несколько
-      // секунд появится следующая естественная дорожная ситуация.
-      const retryAfter = state.level === 'easy' ? 5.5 : state.level === 'medium' ? 4.0 : 3.0;
-      state.lessonTimer = Math.max(
-        state.lessonTimer,
-        LEVELS[state.level].forceAfter - retryAfter
-      );
-    }
   }
 
   function updateCollectibles(dt, roadSpeed) {
@@ -2115,26 +1951,14 @@
         continue;
       }
 
-      let obstacleRect;
-      if (obstacle.kind === 'lessonGate') {
-        obstacleRect = {
-          x: obstacle.x,
-          y: obstacle.y,
-          width: obstacle.width,
-          height: obstacle.height
-        };
-      } else if (obstacle.forcedEncounter && obstacle.encounterRole === 'barrier') {
-        const width = Math.max(obstacle.width * .94, obstacle.forcedHitWidth || 0);
-        const height = Math.max(obstacle.height * .82, obstacle.forcedHitHeight || 0);
-        obstacleRect = {
-          x: obstacle.x + (obstacle.width - width) / 2,
-          y: obstacle.y + (obstacle.height - height) / 2,
-          width,
-          height
-        };
-      } else {
-        obstacleRect = insetRect(obstacle, (1 - obstacle.hitScale) / 2, 0.10);
-      }
+      const obstacleRect = obstacle.kind === 'lessonGate'
+        ? {
+            x: obstacle.x,
+            y: obstacle.y,
+            width: obstacle.width,
+            height: obstacle.height
+          }
+        : insetRect(obstacle, (1 - obstacle.hitScale) / 2, 0.10);
 
       if (rectsOverlap(playerRect, obstacleRect)) {
         collide(obstacle);
@@ -2421,24 +2245,7 @@
       closeScratch(true);
       quizOverlay.classList.add('hidden');
       const hit = state.activeCollision;
-      if (hit) {
-        state.obstacles = state.obstacles.filter(obstacle => obstacle !== hit);
-        if (hit.encounterId) {
-          for (const obstacle of state.obstacles) {
-            if (obstacle.encounterId !== hit.encounterId) continue;
-            // Остальные участники не исчезают после вопроса: они продолжают
-            // движение как обычный транспорт и спокойно уходят за экран.
-            obstacle.forcedEncounter = false;
-            obstacle.encounterId = null;
-            obstacle.encounterRole = null;
-            obstacle.adaptiveLaneChange = false;
-            obstacle.aggressive = false;
-            obstacle.laneChange = null;
-            obstacle.maxLaneDecisions = 0;
-            obstacle.extraSpeed = clamp(obstacle.extraSpeed || .9, .84, 1.02);
-          }
-        }
-      }
+      if (hit) state.obstacles = state.obstacles.filter(obstacle => obstacle !== hit);
       state.activeCollision = null;
       state.currentTask = null;
       state.invulnerable = 2.0;
