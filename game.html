@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Educational Race v34.2 — custom 16:9 environment background mode -->
+<!-- Educational Race v34.4 — natural early lane changes -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -470,9 +470,9 @@
       overflow: hidden;
       background-color: #fff;
       background-image:
-        linear-gradient(#dbe4ef 1px, transparent 1px),
-        linear-gradient(90deg, #dbe4ef 1px, transparent 1px);
-      background-size: 28px 28px;
+        linear-gradient(#e0e0e0 1px, transparent 1px),
+        linear-gradient(90deg, #e0e0e0 1px, transparent 1px);
+      background-size: 30px 30px;
       cursor: crosshair;
       touch-action: none;
     }
@@ -732,8 +732,8 @@
           <div class="scratch-head">
             <div class="scratch-title">✏️ Черновик</div>
             <div class="scratch-controls">
-              <label title="Цвет линии">Цвет <input id="scratchColor" type="color" value="#172554" /></label>
-              <label title="Толщина линии">Толщина <input id="scratchSize" type="range" min="2" max="24" value="5" /></label>
+              <label title="Цвет линии">Цвет <input id="scratchColor" type="color" value="#0abde3" /></label>
+              <label title="Толщина линии">Толщина <input id="scratchSize" type="range" min="1" max="30" value="5" /></label>
               <button class="scratch-tool" id="scratchEraser" type="button" title="Ластик">Ластик</button>
               <button class="scratch-tool" id="scratchClear" type="button" title="Очистить черновик">Очистить</button>
               <button class="scratch-tool scratch-close" id="scratchClose" type="button" title="Закрыть черновик">✕</button>
@@ -1285,6 +1285,7 @@
 
   const MAX_LIVES = Math.max(1, Math.min(10, Number(GAME_CONFIG.maxLives) || 5));
   const STAR_POINTS = Math.max(1, Number(GAME_CONFIG.starPoints) || 10);
+  const BONUS_ROTATES = GAME_CONFIG.bonusRotate !== false;
   const LIFE_SCORE_STEP = Math.max(10, Number(GAME_CONFIG.lifeScoreStep) || 100);
 
   const $ = selector => document.querySelector(selector);
@@ -1679,7 +1680,7 @@
   function spawnTraffic() {
     const lanes = laneData();
     const level = LEVELS[state.level];
-    const aggressive = Math.random() < level.hunterChance;
+    const wantsLaneChange = Math.random() < level.hunterChance;
     const playerCenter = state.player.x + state.player.width / 2;
     const playerLane = nearestLaneIndex(playerCenter, lanes.centers);
 
@@ -1695,11 +1696,17 @@
 
     if (!openLanes.length) return;
 
-    let lane;
-    if (aggressive && openLanes.includes(playerLane)) {
-      lane = playerLane;
-    } else {
-      lane = openLanes[Math.floor(Math.random() * openLanes.length)];
+    // Для естественного перестроения объект появляется в соседней полосе,
+    // а затем один раз заранее уходит в полосу, где находился игрок в момент появления.
+    // После начала манёвра объект больше не отслеживает игрока.
+    const adjacentOpenLanes = [playerLane - 1, playerLane + 1]
+      .filter(lane => lane >= 0 && lane < lanes.laneCount && openLanes.includes(lane));
+
+    let lane = openLanes[Math.floor(Math.random() * openLanes.length)];
+    let targetLane = lane;
+    if (wantsLaneChange && openLanes.includes(playerLane) && adjacentOpenLanes.length) {
+      lane = adjacentOpenLanes[Math.floor(Math.random() * adjacentOpenLanes.length)];
+      targetLane = playerLane;
     }
 
     const spec = weightedTraffic();
@@ -1709,6 +1716,10 @@
     const ratio = image.naturalHeight / image.naturalWidth;
     const height = Math.min(state.H * 0.36, width * ratio);
     const x = lanes.centers[lane] - width / 2;
+    const targetX = lanes.centers[targetLane] - width / 2;
+    const baseRotation = spec.rotation || 0;
+    const hasLaneChange = targetLane !== lane;
+    const swayEnabled = !hasLaneChange && Math.random() < 0.18;
 
     state.obstacles.push({
       kind: 'traffic',
@@ -1718,12 +1729,26 @@
       y: -height - 12,
       width,
       height,
-      extraSpeed: aggressive ? 1.07 + Math.random() * 0.18 : 0.90 + Math.random() * 0.24,
-      sway: aggressive ? 0 : (Math.random() < 0.20 ? (Math.random() < .5 ? -1 : 1) : 0),
-      swayTime: 0,
-      aggressive,
-      followSpeed: level.followSpeed,
-      rotation: spec.rotation || 0,
+      // У перестраивающегося объекта нет ускорения к игроку: вертикальная скорость
+      // остаётся обычной, поэтому он не выглядит летящим назад.
+      extraSpeed: hasLaneChange ? 0.92 + Math.random() * 0.10 : 0.90 + Math.random() * 0.24,
+      aggressive: hasLaneChange,
+      baseRotation,
+      rotation: baseRotation,
+      laneChange: hasLaneChange ? {
+        fromX: x,
+        toX: targetX,
+        targetLane,
+        startY: -height * 0.55,
+        endY: state.H * (0.28 + Math.random() * 0.08),
+        direction: Math.sign(targetX - x) || 1,
+        maxTilt: 0.055 + Math.random() * 0.025,
+        done: false
+      } : null,
+      sway: swayEnabled,
+      swayTime: Math.random() * Math.PI * 2,
+      swayBaseX: x,
+      swayAmplitude: lanes.laneWidth * (0.025 + Math.random() * 0.02),
       hitScale: (spec.scale || .72) >= .86 ? 0.88 : 0.74
     });
   }
@@ -1764,7 +1789,7 @@
       x: lanes.centers[lane],
       y: -radius * 3,
       radius,
-      rotation: Math.random() * Math.PI * 2,
+      rotation: BONUS_ROTATES ? Math.random() * Math.PI * 2 : 0,
       pulse: Math.random() * Math.PI * 2
     });
   }
@@ -1858,30 +1883,39 @@
 
       if (obstacle.kind !== 'traffic') continue;
 
-      if (obstacle.aggressive && obstacle.y < state.H * 0.54) {
-        const playerCenter = state.player.x + state.player.width / 2;
-        const targetX = clamp(
-          playerCenter - obstacle.width / 2,
-          lanes.left + 3,
-          lanes.right - obstacle.width - 3
-        );
-        const maxMove = lanes.laneWidth * obstacle.followSpeed * dt;
-        obstacle.x += clamp(targetX - obstacle.x, -maxMove, maxMove);
-        obstacle.lane = nearestLaneIndex(
-          obstacle.x + obstacle.width / 2,
-          lanes.centers
-        );
-      } else if (obstacle.sway) {
-        obstacle.swayTime += dt;
-        if (obstacle.swayTime > 1.4 && Math.random() < dt * 0.35) {
-          obstacle.sway *= -1;
+      const maneuver = obstacle.laneChange;
+      if (maneuver && !maneuver.done) {
+        const distance = Math.max(1, maneuver.endY - maneuver.startY);
+        const progress = clamp((obstacle.y - maneuver.startY) / distance, 0, 1);
+        // Smoothstep: мягкое начало и завершение без рывка.
+        const eased = progress * progress * (3 - 2 * progress);
+        obstacle.x = maneuver.fromX + (maneuver.toX - maneuver.fromX) * eased;
+        // Небольшой наклон показывает направление, но не разворачивает объект назад.
+        obstacle.rotation = obstacle.baseRotation +
+          Math.sin(progress * Math.PI) * maneuver.maxTilt * maneuver.direction;
+
+        if (progress >= 1) {
+          obstacle.x = maneuver.toX;
+          obstacle.lane = maneuver.targetLane;
+          obstacle.rotation = obstacle.baseRotation;
+          maneuver.done = true;
         }
-        obstacle.x += obstacle.sway * lanes.laneWidth * 0.12 * dt;
+      } else if (obstacle.sway) {
+        // Обычный транспорт слегка покачивается внутри своей полосы, но не мечется
+        // из стороны в сторону и рядом с игроком возвращается к центру полосы.
+        obstacle.swayTime += dt;
+        const desiredX = obstacle.y < state.H * 0.44
+          ? obstacle.swayBaseX + Math.sin(obstacle.swayTime * 1.25) * obstacle.swayAmplitude
+          : obstacle.swayBaseX;
+        obstacle.x += (desiredX - obstacle.x) * Math.min(1, dt * 4);
         obstacle.x = clamp(
           obstacle.x,
           lanes.left + 3,
           lanes.right - obstacle.width - 3
         );
+        obstacle.rotation = obstacle.baseRotation;
+      } else {
+        obstacle.rotation = obstacle.baseRotation;
       }
     }
 
@@ -1893,7 +1927,8 @@
   function updateCollectibles(dt, roadSpeed) {
     for (const item of state.collectibles) {
       item.y += roadSpeed * 0.94 * dt;
-      item.rotation += dt * 2.4;
+      if (BONUS_ROTATES) item.rotation += dt * 2.4;
+      else item.rotation = 0;
       item.pulse += dt * 5;
     }
 
@@ -2011,6 +2046,17 @@
   let scratchDrawing = false;
   let scratchEraseMode = false;
   let scratchLastPoint = null;
+  let scratchLastMidPoint = null;
+
+  function applyScratchStyle() {
+    if (!scratchContext) return;
+    scratchContext.lineCap = 'round';
+    scratchContext.lineJoin = 'round';
+    scratchContext.miterLimit = 1;
+    scratchContext.globalCompositeOperation = scratchEraseMode ? 'destination-out' : 'source-over';
+    scratchContext.strokeStyle = scratchColor?.value || '#0abde3';
+    scratchContext.lineWidth = Math.max(1, Number(scratchSize?.value || 5));
+  }
 
   function resizeScratchCanvas(preserve = true) {
     if (!scratchCanvas || !scratchBody) return;
@@ -2030,10 +2076,11 @@
     scratchCanvas.height = Math.round(rect.height * ratio);
     scratchCanvas.style.width = `${rect.width}px`;
     scratchCanvas.style.height = `${rect.height}px`;
-    scratchContext = scratchCanvas.getContext('2d');
+    scratchContext = scratchCanvas.getContext('2d', { alpha: true, desynchronized: true });
     scratchContext.setTransform(ratio, 0, 0, ratio, 0, 0);
-    scratchContext.lineCap = 'round';
-    scratchContext.lineJoin = 'round';
+    scratchContext.imageSmoothingEnabled = true;
+    scratchContext.imageSmoothingQuality = 'high';
+    applyScratchStyle();
 
     if (snapshot) {
       scratchContext.save();
@@ -2041,6 +2088,7 @@
       scratchContext.drawImage(snapshot, 0, 0, scratchCanvas.width, scratchCanvas.height);
       scratchContext.restore();
       scratchContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+      applyScratchStyle();
     }
   }
 
@@ -2066,6 +2114,7 @@
     if (!scratchPanel) return;
     scratchDrawing = false;
     scratchLastPoint = null;
+    scratchLastMidPoint = null;
     scratchPanel.classList.remove('open');
     scratchPanel.setAttribute('aria-hidden', 'true');
     scratchToggle?.classList.remove('active');
@@ -2088,31 +2137,74 @@
 
   function beginScratch(event) {
     if (!scratchContext) resizeScratchCanvas(false);
+    if (!scratchContext) return;
     scratchDrawing = true;
     scratchLastPoint = scratchPoint(event);
+    scratchLastMidPoint = scratchLastPoint;
+    scratchContext.save();
+    applyScratchStyle();
+    // Маленькая точка делает короткие штрихи и отдельные точки такими же мягкими,
+    // как в черновике «Игрового автомата».
+    scratchContext.beginPath();
+    scratchContext.moveTo(scratchLastPoint.x, scratchLastPoint.y);
+    scratchContext.lineTo(scratchLastPoint.x + 0.01, scratchLastPoint.y);
+    scratchContext.stroke();
+    scratchContext.restore();
     scratchCanvas.setPointerCapture?.(event.pointerId);
     event.preventDefault();
   }
 
+  function addSmoothScratchPoint(point) {
+    if (!scratchContext || !scratchLastPoint || !scratchLastMidPoint) return;
+    const midpoint = {
+      x: (scratchLastPoint.x + point.x) / 2,
+      y: (scratchLastPoint.y + point.y) / 2
+    };
+    scratchContext.beginPath();
+    scratchContext.moveTo(scratchLastMidPoint.x, scratchLastMidPoint.y);
+    scratchContext.quadraticCurveTo(
+      scratchLastPoint.x,
+      scratchLastPoint.y,
+      midpoint.x,
+      midpoint.y
+    );
+    scratchContext.stroke();
+    scratchLastPoint = point;
+    scratchLastMidPoint = midpoint;
+  }
+
   function drawScratch(event) {
     if (!scratchDrawing || !scratchContext || !scratchLastPoint) return;
-    const point = scratchPoint(event);
+    const samples = typeof event.getCoalescedEvents === 'function'
+      ? event.getCoalescedEvents()
+      : [event];
     scratchContext.save();
-    scratchContext.globalCompositeOperation = scratchEraseMode ? 'destination-out' : 'source-over';
-    scratchContext.strokeStyle = scratchColor?.value || '#172554';
-    scratchContext.lineWidth = Number(scratchSize?.value || 5);
-    scratchContext.beginPath();
-    scratchContext.moveTo(scratchLastPoint.x, scratchLastPoint.y);
-    scratchContext.lineTo(point.x, point.y);
-    scratchContext.stroke();
+    applyScratchStyle();
+    for (const sample of samples.length ? samples : [event]) {
+      addSmoothScratchPoint(scratchPoint(sample));
+    }
     scratchContext.restore();
-    scratchLastPoint = point;
     event.preventDefault();
   }
 
   function endScratch(event) {
+    if (scratchDrawing && scratchContext && scratchLastPoint && scratchLastMidPoint) {
+      scratchContext.save();
+      applyScratchStyle();
+      scratchContext.beginPath();
+      scratchContext.moveTo(scratchLastMidPoint.x, scratchLastMidPoint.y);
+      scratchContext.quadraticCurveTo(
+        scratchLastPoint.x,
+        scratchLastPoint.y,
+        scratchLastPoint.x,
+        scratchLastPoint.y
+      );
+      scratchContext.stroke();
+      scratchContext.restore();
+    }
     scratchDrawing = false;
     scratchLastPoint = null;
+    scratchLastMidPoint = null;
     try { scratchCanvas.releasePointerCapture?.(event.pointerId); } catch {}
   }
 
@@ -2124,8 +2216,13 @@
     scratchEraser.classList.toggle('active', scratchEraseMode);
     scratchEraser.textContent = scratchEraseMode ? gt('Рисовать') : gt('Ластик');
   });
-  scratchCanvas?.addEventListener('pointerdown', beginScratch);
-  scratchCanvas?.addEventListener('pointermove', drawScratch);
+  scratchColor?.addEventListener('input', () => {
+    scratchEraseMode = false;
+    scratchEraser?.classList.remove('active');
+    if (scratchEraser) scratchEraser.textContent = gt('Ластик');
+  });
+  scratchCanvas?.addEventListener('pointerdown', beginScratch, { passive: false });
+  scratchCanvas?.addEventListener('pointermove', drawScratch, { passive: false });
   scratchCanvas?.addEventListener('pointerup', endScratch);
   scratchCanvas?.addEventListener('pointercancel', endScratch);
   scratchCanvas?.addEventListener('pointerleave', event => {
