@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Educational Race v34.1 — traffic preserved before forced collision -->
+<!-- Educational Race v34.2 — custom 16:9 environment background mode -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -1242,7 +1242,9 @@
   if (!TRAFFIC_OPTIONS.length) TRAFFIC_OPTIONS.push(ASSETS.traffic[0]);
 
   const ENVIRONMENT_ID = GAME_CONFIG.environmentId || 'meadow';
-  const ENVIRONMENT = GAME_CONFIG.customEnvironment
+  const HAS_CUSTOM_ENVIRONMENT = typeof GAME_CONFIG.customEnvironment === 'string' && !!GAME_CONFIG.customEnvironment;
+  const CUSTOM_ENVIRONMENT_MODE = GAME_CONFIG.environmentMode === 'strips' ? 'strips' : 'full';
+  const ENVIRONMENT = HAS_CUSTOM_ENVIRONMENT
     ? { id: 'custom', name: 'Своя тема', left: GAME_CONFIG.customEnvironment, right: GAME_CONFIG.customEnvironment }
     : (ENVIRONMENTS[ENVIRONMENT_ID] || ENVIRONMENTS.meadow);
 
@@ -1308,6 +1310,7 @@
   const toastEl = $('#toast');
 
   const loaded = {
+    environmentBackground: null,
     sideLeft: null,
     sideRight: null,
     players: new Map(),
@@ -1400,8 +1403,12 @@
   }
 
   async function preload() {
-    loaded.sideLeft = await loadWithFallback(ENVIRONMENT.left, ASSETS.roadside.left);
-    loaded.sideRight = await loadWithFallback(ENVIRONMENT.right, ASSETS.roadside.right);
+    if (HAS_CUSTOM_ENVIRONMENT && CUSTOM_ENVIRONMENT_MODE === 'full') {
+      loaded.environmentBackground = await loadWithFallback(GAME_CONFIG.customEnvironment, ASSETS.roadside.left);
+    } else {
+      loaded.sideLeft = await loadWithFallback(ENVIRONMENT.left, ASSETS.roadside.left);
+      loaded.sideRight = await loadWithFallback(ENVIRONMENT.right, ASSETS.roadside.right);
+    }
     if (CUSTOM_TRACK) {
       try { loaded.track = await loadImage(CUSTOM_TRACK); }
       catch (error) { console.warn(error.message); }
@@ -2363,8 +2370,12 @@
     const lanes = laneData();
     const { left, right } = lanes;
 
-    drawSideRepeat(loaded.sideLeft, 0, left);
-    drawSideRepeat(loaded.sideRight, right, state.W - right);
+    if (loaded.environmentBackground) {
+      drawEnvironmentCover(loaded.environmentBackground);
+    } else {
+      drawSideRepeat(loaded.sideLeft, 0, left);
+      drawSideRepeat(loaded.sideRight, right, state.W - right);
+    }
 
     if (loaded.track) {
       drawCustomTrack(loaded.track, lanes);
@@ -2618,6 +2629,18 @@
     ctx.restore();
     drawTrackEdges(lanes,'#ff9fb2','rgba(255,80,118,.75)',9);
     drawLaneLines(lanes,'#ffd1da',.40,3,1.2);
+  }
+
+  function drawEnvironmentCover(image) {
+    if (!image) return;
+    const imageWidth = image.naturalWidth || image.width || 1;
+    const imageHeight = image.naturalHeight || image.height || 1;
+    const scale = Math.max(state.W / imageWidth, state.H / imageHeight);
+    const drawWidth = imageWidth * scale;
+    const drawHeight = imageHeight * scale;
+    const x = (state.W - drawWidth) / 2;
+    const y = (state.H - drawHeight) / 2;
+    ctx.drawImage(image, x, y, drawWidth, drawHeight);
   }
 
   function drawSideRepeat(image, x, width) {
