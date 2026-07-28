@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Educational Race v34.10 — original pursuit movement with upward diagonal to 80 percent -->
+<!-- Educational Race v34.11 — visible upward pursuit manoeuvres between mid-screen and 80 percent -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -1717,6 +1717,15 @@
       swayTime: 0,
       aggressive,
       followSpeed: level.followSpeed,
+
+      // Опасный объект не перестраивается за верхней границей и не успевает
+      // закончить манёвр до появления на экране. Для каждого объекта точка
+      // начала немного разная, поэтому они не собираются на одной высоте.
+      pursuitStartY: state.H * (0.42 + Math.random() * 0.16),
+      pursuitEndY: state.H * 0.80,
+      pursuitTargetLane: lane,
+      pursuitForwardLeft: 0,
+
       rotation: spec.rotation || 0,
       hitScale: (spec.scale || .72) >= .86 ? 0.88 : 0.74
     });
@@ -1856,28 +1865,55 @@
 
       if (obstacle.kind !== 'traffic') continue;
 
-      // Опасные объекты ведут себя как в присланной версии: следуют за X игрока.
-      // Разница только в направлении диагонали: пока объект реально смещается
-      // в сторону, он немного уходит ВПЕРЁД — вверх по экрану.
-      // Манёвр разрешён до отметки 80% высоты, чтобы ребёнок видел его целиком.
-      if (obstacle.aggressive && obstacle.y < state.H * 0.80) {
+      // Логика преследования оставлена как в присланной версии, но горизонтальное
+      // движение полностью запрещено над видимой зоной. Опасный объект начинает
+      // реагировать только в средней/нижней части экрана и может маневрировать
+      // до отметки 80% высоты.
+      const obstacleCenterY = obstacle.y + obstacle.height / 2;
+      const inVisiblePursuitZone =
+        obstacle.aggressive &&
+        obstacleCenterY >= obstacle.pursuitStartY &&
+        obstacleCenterY <= obstacle.pursuitEndY;
+
+      if (inVisiblePursuitZone) {
         const playerCenter = state.player.x + state.player.width / 2;
+        const playerLane = nearestLaneIndex(playerCenter, lanes.centers);
         const targetX = clamp(
           playerCenter - obstacle.width / 2,
           lanes.left + 3,
           lanes.right - obstacle.width - 3
         );
 
+        // Когда игрок уходит в другую полосу, начинается новый хорошо заметный
+        // манёвр. Запас движения вперёд рассчитывается по реальному боковому пути.
+        if (obstacle.pursuitTargetLane !== playerLane) {
+          obstacle.pursuitTargetLane = playerLane;
+          obstacle.pursuitForwardLeft = Math.min(
+            Math.abs(targetX - obstacle.x) * 0.26,
+            state.H * 0.055
+          );
+        }
+
         const maxMove = lanes.laneWidth * obstacle.followSpeed * dt;
         const moveX = clamp(targetX - obstacle.x, -maxMove, maxMove);
         obstacle.x += moveX;
 
         if (Math.abs(moveX) > 0.01) {
-          // Сначала отменяем сделанный выше шаг вниз, затем добавляем небольшой
-          // подъём, пропорциональный боковому смещению. Поэтому получается
-          // естественная диагональ вверх, но объект не зависает на одной высоте:
-          // как только перестроение завершено, он снова движется вниз.
-          obstacle.y -= verticalStep + Math.abs(moveX) * 0.55;
+          // Базовый шаг вниз отменяется только на время реального перестроения.
+          // Дополнительно объект немного поднимается: получается диагональ ВВЕРХ,
+          // а не движение вниз к игроку. После достижения полосы обычное движение
+          // сверху вниз сразу продолжается, поэтому объекты не висят одной группой.
+          const forwardStep = Math.min(
+            obstacle.pursuitForwardLeft,
+            Math.abs(moveX) * 0.26
+          );
+          obstacle.y -= verticalStep + forwardStep;
+          obstacle.pursuitForwardLeft = Math.max(
+            0,
+            obstacle.pursuitForwardLeft - forwardStep
+          );
+        } else {
+          obstacle.pursuitForwardLeft = 0;
         }
 
         obstacle.lane = nearestLaneIndex(
