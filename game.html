@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Educational Race v34.13 — original traffic speed with one small forward lane-change nudge -->
+<!-- Educational Race v34.14 — full 16:9 custom background and smoother scratchpad -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -734,7 +734,7 @@
             <div class="scratch-controls">
               <label title="Цвет линии">Цвет <input id="scratchColor" type="color" value="#172554" /></label>
               <label title="Толщина линии">Толщина <input id="scratchSize" type="range" min="2" max="24" value="5" /></label>
-              <button class="scratch-tool" id="scratchEraser" type="button" title="Ластик">Ластик</button>
+              <button class="scratch-tool" id="scratchEraser" type="button" title="Ластик" aria-label="Ластик">🧽</button>
               <button class="scratch-tool" id="scratchClear" type="button" title="Очистить черновик">Очистить</button>
               <button class="scratch-tool scratch-close" id="scratchClose" type="button" title="Закрыть черновик">✕</button>
             </div>
@@ -1242,9 +1242,10 @@
   if (!TRAFFIC_OPTIONS.length) TRAFFIC_OPTIONS.push(ASSETS.traffic[0]);
 
   const ENVIRONMENT_ID = GAME_CONFIG.environmentId || 'meadow';
-  const ENVIRONMENT = GAME_CONFIG.customEnvironment
-    ? { id: 'custom', name: 'Своя тема', left: GAME_CONFIG.customEnvironment, right: GAME_CONFIG.customEnvironment }
-    : (ENVIRONMENTS[ENVIRONMENT_ID] || ENVIRONMENTS.meadow);
+  const CUSTOM_ENVIRONMENT = typeof GAME_CONFIG.customEnvironment === 'string'
+    ? GAME_CONFIG.customEnvironment.trim()
+    : '';
+  const ENVIRONMENT = ENVIRONMENTS[ENVIRONMENT_ID] || ENVIRONMENTS.meadow;
 
   const TRACK_IDS = ['highway', 'space', 'sea', 'magic', 'digital', 'forest', 'vessel'];
   const TRACK_ID = TRACK_IDS.includes(GAME_CONFIG.trackId) ? GAME_CONFIG.trackId : 'highway';
@@ -1309,6 +1310,7 @@
   const toastEl = $('#toast');
 
   const loaded = {
+    background: null,
     sideLeft: null,
     sideRight: null,
     players: new Map(),
@@ -1401,8 +1403,18 @@
   }
 
   async function preload() {
-    loaded.sideLeft = await loadWithFallback(ENVIRONMENT.left, ASSETS.roadside.left);
-    loaded.sideRight = await loadWithFallback(ENVIRONMENT.right, ASSETS.roadside.right);
+    if (CUSTOM_ENVIRONMENT) {
+      try {
+        loaded.background = await loadImage(CUSTOM_ENVIRONMENT);
+      } catch (error) {
+        console.warn(error.message);
+        loaded.sideLeft = await loadWithFallback(ENVIRONMENT.left, ASSETS.roadside.left);
+        loaded.sideRight = await loadWithFallback(ENVIRONMENT.right, ASSETS.roadside.right);
+      }
+    } else {
+      loaded.sideLeft = await loadWithFallback(ENVIRONMENT.left, ASSETS.roadside.left);
+      loaded.sideRight = await loadWithFallback(ENVIRONMENT.right, ASSETS.roadside.right);
+    }
     if (CUSTOM_TRACK) {
       try { loaded.track = await loadImage(CUSTOM_TRACK); }
       catch (error) { console.warn(error.message); }
@@ -2058,6 +2070,7 @@
   let scratchDrawing = false;
   let scratchEraseMode = false;
   let scratchLastPoint = null;
+  let scratchLastMidPoint = null;
 
   function resizeScratchCanvas(preserve = true) {
     if (!scratchCanvas || !scratchBody) return;
@@ -2081,6 +2094,8 @@
     scratchContext.setTransform(ratio, 0, 0, ratio, 0, 0);
     scratchContext.lineCap = 'round';
     scratchContext.lineJoin = 'round';
+    scratchContext.imageSmoothingEnabled = true;
+    scratchContext.imageSmoothingQuality = 'high';
 
     if (snapshot) {
       scratchContext.save();
@@ -2113,6 +2128,7 @@
     if (!scratchPanel) return;
     scratchDrawing = false;
     scratchLastPoint = null;
+    scratchLastMidPoint = null;
     scratchPanel.classList.remove('open');
     scratchPanel.setAttribute('aria-hidden', 'true');
     scratchToggle?.classList.remove('active');
@@ -2133,33 +2149,98 @@
     };
   }
 
+  function scratchMidPoint(a, b) {
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+
+  function applyScratchToolStyle() {
+    scratchContext.globalCompositeOperation = scratchEraseMode ? 'destination-out' : 'source-over';
+    scratchContext.strokeStyle = scratchColor?.value || '#172554';
+    scratchContext.fillStyle = scratchColor?.value || '#172554';
+    const baseWidth = Number(scratchSize?.value || 5);
+    scratchContext.lineWidth = scratchEraseMode ? baseWidth * 1.8 : baseWidth;
+    scratchContext.lineCap = 'round';
+    scratchContext.lineJoin = 'round';
+  }
+
+  function updateScratchEraserButton() {
+    if (!scratchEraser) return;
+    const label = scratchEraseMode ? gt('Рисовать') : gt('Ластик');
+    scratchEraser.textContent = scratchEraseMode ? '✏️' : '🧽';
+    scratchEraser.setAttribute('title', label);
+    scratchEraser.setAttribute('aria-label', label);
+    scratchEraser.classList.toggle('active', scratchEraseMode);
+  }
+
   function beginScratch(event) {
     if (!scratchContext) resizeScratchCanvas(false);
     scratchDrawing = true;
     scratchLastPoint = scratchPoint(event);
+    scratchLastMidPoint = scratchLastPoint;
     scratchCanvas.setPointerCapture?.(event.pointerId);
+
+    scratchContext.save();
+    applyScratchToolStyle();
+    scratchContext.beginPath();
+    scratchContext.arc(
+      scratchLastPoint.x,
+      scratchLastPoint.y,
+      Math.max(1, scratchContext.lineWidth / 2),
+      0,
+      Math.PI * 2
+    );
+    scratchContext.fill();
+    scratchContext.restore();
     event.preventDefault();
   }
 
   function drawScratch(event) {
-    if (!scratchDrawing || !scratchContext || !scratchLastPoint) return;
-    const point = scratchPoint(event);
+    if (!scratchDrawing || !scratchContext || !scratchLastPoint || !scratchLastMidPoint) return;
+    const samples = typeof event.getCoalescedEvents === 'function'
+      ? event.getCoalescedEvents()
+      : [event];
+
     scratchContext.save();
-    scratchContext.globalCompositeOperation = scratchEraseMode ? 'destination-out' : 'source-over';
-    scratchContext.strokeStyle = scratchColor?.value || '#172554';
-    scratchContext.lineWidth = Number(scratchSize?.value || 5);
-    scratchContext.beginPath();
-    scratchContext.moveTo(scratchLastPoint.x, scratchLastPoint.y);
-    scratchContext.lineTo(point.x, point.y);
-    scratchContext.stroke();
+    applyScratchToolStyle();
+
+    for (const sample of samples.length ? samples : [event]) {
+      const point = scratchPoint(sample);
+      const midPoint = scratchMidPoint(scratchLastPoint, point);
+      scratchContext.beginPath();
+      scratchContext.moveTo(scratchLastMidPoint.x, scratchLastMidPoint.y);
+      scratchContext.quadraticCurveTo(
+        scratchLastPoint.x,
+        scratchLastPoint.y,
+        midPoint.x,
+        midPoint.y
+      );
+      scratchContext.stroke();
+      scratchLastPoint = point;
+      scratchLastMidPoint = midPoint;
+    }
+
     scratchContext.restore();
-    scratchLastPoint = point;
     event.preventDefault();
   }
 
   function endScratch(event) {
+    if (scratchDrawing && scratchContext && scratchLastPoint && scratchLastMidPoint) {
+      scratchContext.save();
+      applyScratchToolStyle();
+      scratchContext.beginPath();
+      scratchContext.moveTo(scratchLastMidPoint.x, scratchLastMidPoint.y);
+      scratchContext.quadraticCurveTo(
+        scratchLastPoint.x,
+        scratchLastPoint.y,
+        scratchLastPoint.x,
+        scratchLastPoint.y
+      );
+      scratchContext.stroke();
+      scratchContext.restore();
+    }
     scratchDrawing = false;
     scratchLastPoint = null;
+    scratchLastMidPoint = null;
     try { scratchCanvas.releasePointerCapture?.(event.pointerId); } catch {}
   }
 
@@ -2168,8 +2249,7 @@
   scratchClear?.addEventListener('click', clearScratch);
   scratchEraser?.addEventListener('click', () => {
     scratchEraseMode = !scratchEraseMode;
-    scratchEraser.classList.toggle('active', scratchEraseMode);
-    scratchEraser.textContent = scratchEraseMode ? gt('Рисовать') : gt('Ластик');
+    updateScratchEraserButton();
   });
   scratchCanvas?.addEventListener('pointerdown', beginScratch);
   scratchCanvas?.addEventListener('pointermove', drawScratch);
@@ -2184,8 +2264,7 @@
     if (!task) return;
     closeScratch(true);
     scratchEraseMode = false;
-    scratchEraser?.classList.remove('active');
-    if (scratchEraser) scratchEraser.textContent = gt('Ластик');
+    updateScratchEraserButton();
 
     $('#quizLevel').textContent = state.draftPreview ? gt('Черновик вопроса — не сохранён') : gt('Реши задание, чтобы продолжить');
     const question = $('#quizQuestion');
@@ -2417,8 +2496,14 @@
     const lanes = laneData();
     const { left, right } = lanes;
 
-    drawSideRepeat(loaded.sideLeft, 0, left);
-    drawSideRepeat(loaded.sideRight, right, state.W - right);
+    if (loaded.background) {
+      drawBackgroundCover(loaded.background);
+    } else {
+      ctx.fillStyle = '#07101e';
+      ctx.fillRect(0, 0, state.W, state.H);
+      drawSideRepeat(loaded.sideLeft, 0, left);
+      drawSideRepeat(loaded.sideRight, right, state.W - right);
+    }
 
     if (loaded.track) {
       drawCustomTrack(loaded.track, lanes);
@@ -2672,6 +2757,18 @@
     ctx.restore();
     drawTrackEdges(lanes,'#ff9fb2','rgba(255,80,118,.75)',9);
     drawLaneLines(lanes,'#ffd1da',.40,3,1.2);
+  }
+
+  function drawBackgroundCover(image) {
+    if (!image) return;
+    const imageWidth = Math.max(1, image.naturalWidth || image.width || 1);
+    const imageHeight = Math.max(1, image.naturalHeight || image.height || 1);
+    const scale = Math.max(state.W / imageWidth, state.H / imageHeight);
+    const drawWidth = imageWidth * scale;
+    const drawHeight = imageHeight * scale;
+    const x = (state.W - drawWidth) / 2;
+    const y = (state.H - drawHeight) / 2;
+    ctx.drawImage(image, x, y, drawWidth, drawHeight);
   }
 
   function drawSideRepeat(image, x, width) {
