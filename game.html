@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Educational Race v34.6 — fixed embedded preview and forward lane changes -->
+<!-- Educational Race v34.7 — visible fair cut-in lane changes -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -1696,9 +1696,10 @@
 
     if (!openLanes.length) return;
 
-    // Для естественного перестроения объект появляется в соседней полосе,
-    // а затем один раз заранее уходит в полосу, где находился игрок в момент появления.
-    // После начала манёвра объект больше не отслеживает игрока.
+    // Опасный объект появляется в соседней полосе, но не перестраивается за кадром.
+    // Он ждёт, пока станет хорошо виден примерно в середине экрана, затем предупреждает
+    // небольшим наклоном и один раз подрезает траекторию игрока. После фиксации цели
+    // объект больше не отслеживает перемещения игрока.
     const adjacentOpenLanes = [playerLane - 1, playerLane + 1]
       .filter(lane => lane >= 0 && lane < lanes.laneCount && openLanes.includes(lane));
 
@@ -1729,9 +1730,8 @@
       y: -height - 12,
       width,
       height,
-      // У перестраивающегося объекта нет ускорения к игроку: вертикальная скорость
-      // остаётся обычной, поэтому он не выглядит летящим назад.
-      extraSpeed: hasLaneChange ? 0.92 + Math.random() * 0.10 : 0.90 + Math.random() * 0.24,
+      // До начала подрезания объект движется как обычный участник потока.
+      extraSpeed: hasLaneChange ? 0.94 + Math.random() * 0.08 : 0.90 + Math.random() * 0.24,
       aggressive: hasLaneChange,
       baseRotation,
       rotation: baseRotation,
@@ -1739,15 +1739,22 @@
         fromX: x,
         toX: targetX,
         targetLane,
-        startY: -height * 0.55,
-        endY: state.H * (0.28 + Math.random() * 0.08),
-        direction: Math.sign(targetX - x) || 1,
-        // Наклон стал слабее, чтобы объект не выглядел разворачивающимся назад.
-        maxTilt: 0.035 + Math.random() * 0.015,
-        // Сначала объект немного едет прямо, затем перестраивается вперёд и вбок.
-        delay: 0.15 + Math.random() * 0.10,
-        duration: 1.15 + Math.random() * 0.15,
+        // Манёвр начинается только после появления объекта в хорошо видимой зоне.
+        triggerY: state.H * (0.39 + Math.random() * 0.055),
+        phase: 'approach',
+        warningDuration: state.level === 'easy'
+          ? 0.36 + Math.random() * 0.06
+          : state.level === 'medium'
+            ? 0.30 + Math.random() * 0.05
+            : 0.24 + Math.random() * 0.04,
+        duration: state.level === 'easy'
+          ? 0.98 + Math.random() * 0.08
+          : state.level === 'medium'
+            ? 0.86 + Math.random() * 0.08
+            : 0.74 + Math.random() * 0.07,
         elapsed: 0,
+        direction: Math.sign(targetX - x) || 1,
+        maxTilt: 0.060 + Math.random() * 0.018,
         done: false
       } : null,
       sway: swayEnabled,
@@ -1884,35 +1891,115 @@
         continue;
       }
 
-      obstacle.y += roadSpeed * (obstacle.kind === 'lessonGate' ? 1.0 : obstacle.extraSpeed) * dt;
-
-      if (obstacle.kind !== 'traffic') continue;
+      if (obstacle.kind !== 'traffic') {
+        obstacle.y += roadSpeed * (obstacle.kind === 'lessonGate' ? 1.0 : obstacle.extraSpeed) * dt;
+        continue;
+      }
 
       const maneuver = obstacle.laneChange;
-      if (maneuver && !maneuver.done) {
-        maneuver.elapsed += dt;
 
-        if (maneuver.elapsed < maneuver.delay) {
-          // Перед перестроением объект короткое время продолжает ехать прямо.
+      if (maneuver && !maneuver.done) {
+        if (maneuver.phase === 'approach') {
+          // Пока объект находится далеко, он просто едет прямо по своей полосе.
+          obstacle.y += roadSpeed * obstacle.extraSpeed * dt;
           obstacle.rotation = obstacle.baseRotation;
-        } else {
+
+          if (obstacle.y >= maneuver.triggerY) {
+            const playerCenter = state.player.x + state.player.width / 2;
+            const playerLaneNow = nearestLaneIndex(playerCenter, lanes.centers);
+            const currentLane = obstacle.lane;
+
+            // Цель фиксируется один раз в момент начала манёвра.
+            // Если игрок уже оказался в этой полосе, дополнительное подрезание не нужно:
+            // объект и так представляет препятствие впереди.
+            const stepTowardPlayer = Math.sign(playerLaneNow - currentLane);
+            if (!stepTowardPlayer) {
+              maneuver.done = true;
+              obstacle.rotation = obstacle.baseRotation;
+              continue;
+            }
+
+            const candidateLane = currentLane + stepTowardPlayer;
+            const candidateValid = candidateLane >= 0 && candidateLane < lanes.laneCount;
+
+            // Не начинаем подрезание, если соседняя полоса занята рядом с объектом.
+            const candidateBlocked = candidateValid && state.obstacles.some(other => {
+              if (other === obstacle || other.kind !== 'traffic') return false;
+              const otherLane = other.laneChange && !other.laneChange.done
+                ? other.laneChange.targetLane
+                : other.lane;
+              const verticalGap = Math.abs(
+                (other.y + other.height / 2) - (obstacle.y + obstacle.height / 2)
+              );
+              return otherLane === candidateLane &&
+                verticalGap < Math.max(other.height, obstacle.height) * 1.35;
+            });
+
+            // У игрока должна оставаться хотя бы одна соседняя полоса для уклонения.
+            const escapeLanes = [playerLaneNow - 1, playerLaneNow + 1]
+              .filter(lane => lane >= 0 && lane < lanes.laneCount && lane !== currentLane);
+            const hasEscapeLane = escapeLanes.some(lane => !state.obstacles.some(other => {
+              if (other === obstacle || other.kind !== 'traffic') return false;
+              const otherLane = other.laneChange && !other.laneChange.done
+                ? other.laneChange.targetLane
+                : other.lane;
+              const dangerTop = state.H * 0.48;
+              const dangerBottom = state.player.y + state.player.height * 0.55;
+              return otherLane === lane &&
+                other.y + other.height > dangerTop &&
+                other.y < dangerBottom;
+            }));
+
+            if (!candidateValid || candidateBlocked || !hasEscapeLane) {
+              maneuver.done = true;
+              obstacle.rotation = obstacle.baseRotation;
+              continue;
+            }
+
+            maneuver.targetLane = candidateLane;
+            maneuver.fromX = obstacle.x;
+            maneuver.toX = lanes.centers[candidateLane] - obstacle.width / 2;
+            maneuver.direction = Math.sign(maneuver.toX - maneuver.fromX) || 1;
+            maneuver.phase = 'warning';
+            maneuver.elapsed = 0;
+          }
+        } else if (maneuver.phase === 'warning') {
+          maneuver.elapsed += dt;
+
+          // Короткое предупреждение: объект продолжает движение, немного замедляется
+          // и наклоняется в сторону будущего перестроения.
+          obstacle.y += roadSpeed * obstacle.extraSpeed * 0.72 * dt;
+          const warningProgress = clamp(
+            maneuver.elapsed / Math.max(0.1, maneuver.warningDuration),
+            0,
+            1
+          );
+          const warningEase = warningProgress * warningProgress * (3 - 2 * warningProgress);
+          obstacle.x = maneuver.fromX +
+            (maneuver.toX - maneuver.fromX) * 0.055 * warningEase;
+          obstacle.rotation = obstacle.baseRotation +
+            maneuver.maxTilt * 0.58 * warningEase * maneuver.direction;
+
+          if (warningProgress >= 1) {
+            maneuver.fromX = obstacle.x;
+            maneuver.phase = 'changing';
+            maneuver.elapsed = 0;
+          }
+        } else if (maneuver.phase === 'changing') {
+          maneuver.elapsed += dt;
           const progress = clamp(
-            (maneuver.elapsed - maneuver.delay) / Math.max(0.1, maneuver.duration),
+            maneuver.elapsed / Math.max(0.1, maneuver.duration),
             0,
             1
           );
 
-          // Основное движение выше уже прибавило Y, как для остальных объектов.
-          // Эта поправка почти нейтрализует движение назад и в середине манёвра
-          // слегка продвигает объект вперёд — вверх по экрану.
-          const forwardCorrection = 1.00 + Math.sin(progress * Math.PI) * 0.12;
-          obstacle.y -= roadSpeed * forwardCorrection * dt;
+          // Подрезание почти горизонтальное: объект быстро смещается вбок,
+          // но лишь немного приближается к игроку по вертикали.
+          obstacle.y += roadSpeed * 0.23 * dt;
 
-          // Smoothstep: мягкое начало и завершение бокового движения без рывка.
           const eased = progress * progress * (3 - 2 * progress);
-          obstacle.x = maneuver.fromX + (maneuver.toX - maneuver.fromX) * eased;
-
-          // Слабый наклон подчёркивает смену полосы, но не выглядит разворотом назад.
+          obstacle.x = maneuver.fromX +
+            (maneuver.toX - maneuver.fromX) * eased;
           obstacle.rotation = obstacle.baseRotation +
             Math.sin(progress * Math.PI) * maneuver.maxTilt * maneuver.direction;
 
@@ -1923,21 +2010,23 @@
             maneuver.done = true;
           }
         }
-      } else if (obstacle.sway) {
-        // Обычный транспорт слегка покачивается внутри своей полосы, но не мечется
-        // из стороны в сторону и рядом с игроком возвращается к центру полосы.
-        obstacle.swayTime += dt;
-        const desiredX = obstacle.y < state.H * 0.44
-          ? obstacle.swayBaseX + Math.sin(obstacle.swayTime * 1.25) * obstacle.swayAmplitude
-          : obstacle.swayBaseX;
-        obstacle.x += (desiredX - obstacle.x) * Math.min(1, dt * 4);
-        obstacle.x = clamp(
-          obstacle.x,
-          lanes.left + 3,
-          lanes.right - obstacle.width - 3
-        );
-        obstacle.rotation = obstacle.baseRotation;
       } else {
+        obstacle.y += roadSpeed * obstacle.extraSpeed * dt;
+
+        if (obstacle.sway) {
+          // Обычный транспорт слегка покачивается внутри своей полосы, но не мечется.
+          obstacle.swayTime += dt;
+          const desiredX = obstacle.y < state.H * 0.44
+            ? obstacle.swayBaseX + Math.sin(obstacle.swayTime * 1.25) * obstacle.swayAmplitude
+            : obstacle.swayBaseX;
+          obstacle.x += (desiredX - obstacle.x) * Math.min(1, dt * 4);
+          obstacle.x = clamp(
+            obstacle.x,
+            lanes.left + 3,
+            lanes.right - obstacle.width - 3
+          );
+        }
+
         obstacle.rotation = obstacle.baseRotation;
       }
     }
