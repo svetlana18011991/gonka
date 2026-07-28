@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Educational Race v34.12 — visible upward pursuit manoeuvres; editor preview placeholder fix -->
+<!-- Educational Race v34.13 — original traffic speed with one small forward lane-change nudge -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -1718,13 +1718,16 @@
       aggressive,
       followSpeed: level.followSpeed,
 
-      // Опасный объект не перестраивается за верхней границей и не успевает
-      // закончить манёвр до появления на экране. Для каждого объекта точка
-      // начала немного разная, поэтому они не собираются на одной высоте.
-      pursuitStartY: state.H * (0.42 + Math.random() * 0.16),
+      // Перестроение разрешено только после появления объекта в хорошо
+      // видимой области и продолжается не ниже отметки 80% экрана.
+      pursuitStartY: state.H * (0.25 + Math.random() * 0.07),
       pursuitEndY: state.H * 0.80,
-      pursuitTargetLane: lane,
+
+      // Это НЕ дополнительная скорость. При первом реальном перестроении
+      // объект получает один маленький фиксированный сдвиг вперёд, после чего
+      // снова движется с исходной скоростью из присланной версии.
       pursuitForwardLeft: 0,
+      pursuitForwardUsed: false,
 
       rotation: spec.rotation || 0,
       hitScale: (spec.scale || .72) >= .86 ? 0.88 : 0.74
@@ -1857,18 +1860,15 @@
         continue;
       }
 
-      // Базовое движение полностью оставлено как в присланной версии:
-      // объекты идут сверху вниз, поэтому игрок визуально их догоняет и обходит.
+      // ИСХОДНАЯ вертикальная скорость не меняется ни до, ни во время,
+      // ни после перестроения. Поэтому игрок по-прежнему догоняет и обходит
+      // препятствия, а объекты не зависают и не собираются на одной высоте.
       const verticalStep = roadSpeed *
         (obstacle.kind === 'lessonGate' ? 1.0 : (obstacle.extraSpeed || 1)) * dt;
       obstacle.y += verticalStep;
 
       if (obstacle.kind !== 'traffic') continue;
 
-      // Логика преследования оставлена как в присланной версии, но горизонтальное
-      // движение полностью запрещено над видимой зоной. Опасный объект начинает
-      // реагировать только в средней/нижней части экрана и может маневрировать
-      // до отметки 80% высоты.
       const obstacleCenterY = obstacle.y + obstacle.height / 2;
       const inVisiblePursuitZone =
         obstacle.aggressive &&
@@ -1877,43 +1877,40 @@
 
       if (inVisiblePursuitZone) {
         const playerCenter = state.player.x + state.player.width / 2;
-        const playerLane = nearestLaneIndex(playerCenter, lanes.centers);
         const targetX = clamp(
           playerCenter - obstacle.width / 2,
           lanes.left + 3,
           lanes.right - obstacle.width - 3
         );
 
-        // Когда игрок уходит в другую полосу, начинается новый хорошо заметный
-        // манёвр. Запас движения вперёд рассчитывается по реальному боковому пути.
-        if (obstacle.pursuitTargetLane !== playerLane) {
-          obstacle.pursuitTargetLane = playerLane;
-          obstacle.pursuitForwardLeft = Math.min(
-            Math.abs(targetX - obstacle.x) * 0.26,
-            state.H * 0.055
-          );
-        }
-
+        // Горизонтальное движение оставлено таким же, как в присланной версии.
         const maxMove = lanes.laneWidth * obstacle.followSpeed * dt;
         const moveX = clamp(targetX - obstacle.x, -maxMove, maxMove);
         obstacle.x += moveX;
 
         if (Math.abs(moveX) > 0.01) {
-          // Базовый шаг вниз отменяется только на время реального перестроения.
-          // Дополнительно объект немного поднимается: получается диагональ ВВЕРХ,
-          // а не движение вниз к игроку. После достижения полосы обычное движение
-          // сверху вниз сразу продолжается, поэтому объекты не висят одной группой.
-          const forwardStep = Math.min(
-            obstacle.pursuitForwardLeft,
-            Math.abs(moveX) * 0.26
-          );
-          obstacle.y -= verticalStep + forwardStep;
-          obstacle.pursuitForwardLeft = Math.max(
-            0,
-            obstacle.pursuitForwardLeft - forwardStep
-          );
-        } else {
-          obstacle.pursuitForwardLeft = 0;
+          // Только один небольшой позиционный сдвиг вперёд за весь манёвр.
+          // Он НЕ увеличивает extraSpeed и НЕ отменяет verticalStep.
+          // После короткого сдвига объект сразу продолжает ехать с прежней скоростью.
+          if (!obstacle.pursuitForwardUsed) {
+            obstacle.pursuitForwardUsed = true;
+            obstacle.pursuitForwardLeft = Math.min(
+              state.H * 0.018,
+              lanes.laneWidth * 0.16
+            );
+          }
+
+          if (obstacle.pursuitForwardLeft > 0) {
+            // Сдвиг распределён на несколько кадров. За кадр объект продвигается
+            // вперёд лишь чуть сильнее обычного шага вниз, поэтому видна короткая
+            // диагональ вверх, но постоянного ускорения не возникает.
+            const forwardStep = Math.min(
+              obstacle.pursuitForwardLeft,
+              verticalStep + Math.max(0.7, state.H * 0.0012)
+            );
+            obstacle.y -= forwardStep;
+            obstacle.pursuitForwardLeft -= forwardStep;
+          }
         }
 
         obstacle.lane = nearestLaneIndex(
