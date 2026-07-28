@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Educational Race v34.4 — natural early lane changes -->
+<!-- Educational Race v34.5 — lane changes move slightly forward -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -1742,7 +1742,12 @@
         startY: -height * 0.55,
         endY: state.H * (0.28 + Math.random() * 0.08),
         direction: Math.sign(targetX - x) || 1,
-        maxTilt: 0.055 + Math.random() * 0.025,
+        // Наклон стал слабее, чтобы объект не выглядел разворачивающимся назад.
+        maxTilt: 0.035 + Math.random() * 0.015,
+        // Сначала объект немного едет прямо, затем перестраивается вперёд и вбок.
+        delay: 0.15 + Math.random() * 0.10,
+        duration: 1.15 + Math.random() * 0.15,
+        elapsed: 0,
         done: false
       } : null,
       sway: swayEnabled,
@@ -1885,20 +1890,38 @@
 
       const maneuver = obstacle.laneChange;
       if (maneuver && !maneuver.done) {
-        const distance = Math.max(1, maneuver.endY - maneuver.startY);
-        const progress = clamp((obstacle.y - maneuver.startY) / distance, 0, 1);
-        // Smoothstep: мягкое начало и завершение без рывка.
-        const eased = progress * progress * (3 - 2 * progress);
-        obstacle.x = maneuver.fromX + (maneuver.toX - maneuver.fromX) * eased;
-        // Небольшой наклон показывает направление, но не разворачивает объект назад.
-        obstacle.rotation = obstacle.baseRotation +
-          Math.sin(progress * Math.PI) * maneuver.maxTilt * maneuver.direction;
+        maneuver.elapsed += dt;
 
-        if (progress >= 1) {
-          obstacle.x = maneuver.toX;
-          obstacle.lane = maneuver.targetLane;
+        if (maneuver.elapsed < maneuver.delay) {
+          // Перед перестроением объект короткое время продолжает ехать прямо.
           obstacle.rotation = obstacle.baseRotation;
-          maneuver.done = true;
+        } else {
+          const progress = clamp(
+            (maneuver.elapsed - maneuver.delay) / Math.max(0.1, maneuver.duration),
+            0,
+            1
+          );
+
+          // Основное движение выше уже прибавило Y, как для остальных объектов.
+          // Эта поправка почти нейтрализует движение назад и в середине манёвра
+          // слегка продвигает объект вперёд — вверх по экрану.
+          const forwardCorrection = 1.00 + Math.sin(progress * Math.PI) * 0.12;
+          obstacle.y -= roadSpeed * forwardCorrection * dt;
+
+          // Smoothstep: мягкое начало и завершение бокового движения без рывка.
+          const eased = progress * progress * (3 - 2 * progress);
+          obstacle.x = maneuver.fromX + (maneuver.toX - maneuver.fromX) * eased;
+
+          // Слабый наклон подчёркивает смену полосы, но не выглядит разворотом назад.
+          obstacle.rotation = obstacle.baseRotation +
+            Math.sin(progress * Math.PI) * maneuver.maxTilt * maneuver.direction;
+
+          if (progress >= 1) {
+            obstacle.x = maneuver.toX;
+            obstacle.lane = maneuver.targetLane;
+            obstacle.rotation = obstacle.baseRotation;
+            maneuver.done = true;
+          }
         }
       } else if (obstacle.sway) {
         // Обычный транспорт слегка покачивается внутри своей полосы, но не мечется
