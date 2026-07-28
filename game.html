@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Educational Race v34.9 — original pursuit movement with forward arc to 80 percent -->
+<!-- Educational Race v34.10 — original pursuit movement with upward diagonal to 80 percent -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -1717,11 +1717,6 @@
       swayTime: 0,
       aggressive,
       followSpeed: level.followSpeed,
-      // Сохраняем поведение исходной версии: опасный объект следует за игроком.
-      // Но само боковое движение начинается только в нижней половине экрана.
-      steerStartRatio: 0.44 + Math.random() * 0.05,
-      steerEndRatio: 0.80,
-      steerMinY: null,
       rotation: spec.rotation || 0,
       hitScale: (spec.scale || .72) >= .86 ? 0.88 : 0.74
     });
@@ -1853,28 +1848,19 @@
         continue;
       }
 
-      if (obstacle.kind === 'lessonGate') {
-        obstacle.y += roadSpeed * 1.0 * dt;
-        continue;
-      }
+      // Базовое движение полностью оставлено как в присланной версии:
+      // объекты идут сверху вниз, поэтому игрок визуально их догоняет и обходит.
+      const verticalStep = roadSpeed *
+        (obstacle.kind === 'lessonGate' ? 1.0 : (obstacle.extraSpeed || 1)) * dt;
+      obstacle.y += verticalStep;
 
-      if (obstacle.kind !== 'traffic') {
-        obstacle.y += roadSpeed * (obstacle.extraSpeed || 1) * dt;
-        continue;
-      }
+      if (obstacle.kind !== 'traffic') continue;
 
-      const steerStartY = state.H * (obstacle.steerStartRatio || 0.44);
-      const steerEndY = state.H * (obstacle.steerEndRatio || 0.80);
-      const pursuitActive = obstacle.aggressive &&
-        obstacle.y >= steerStartY &&
-        obstacle.y < steerEndY;
-
-      if (pursuitActive) {
-        if (!Number.isFinite(obstacle.steerMinY)) {
-          // Объект может немного уйти вперёд, но не возвращается в верх экрана.
-          obstacle.steerMinY = Math.max(steerStartY - state.H * 0.035, 0);
-        }
-
+      // Опасные объекты ведут себя как в присланной версии: следуют за X игрока.
+      // Разница только в направлении диагонали: пока объект реально смещается
+      // в сторону, он немного уходит ВПЕРЁД — вверх по экрану.
+      // Манёвр разрешён до отметки 80% высоты, чтобы ребёнок видел его целиком.
+      if (obstacle.aggressive && obstacle.y < state.H * 0.80) {
         const playerCenter = state.player.x + state.player.width / 2;
         const targetX = clamp(
           playerCenter - obstacle.width / 2,
@@ -1882,38 +1868,33 @@
           lanes.right - obstacle.width - 3
         );
 
-        // Горизонтальное движение оставлено таким же, как в исходной версии.
         const maxMove = lanes.laneWidth * obstacle.followSpeed * dt;
         const moveX = clamp(targetX - obstacle.x, -maxMove, maxMove);
         obstacle.x += moveX;
 
-        // Пока объект идёт в сторону, он делает небольшой ход вперёд — вверх по экрану.
-        // Когда бокового движения нет, он медленно приближается к отметке 80%.
-        const slowDownwardDrift = roadSpeed * 0.18 * dt;
-        const forwardLift = Math.abs(moveX) * 1.15;
-        obstacle.y += slowDownwardDrift - forwardLift;
-        obstacle.y = Math.max(obstacle.steerMinY, obstacle.y);
+        if (Math.abs(moveX) > 0.01) {
+          // Сначала отменяем сделанный выше шаг вниз, затем добавляем небольшой
+          // подъём, пропорциональный боковому смещению. Поэтому получается
+          // естественная диагональ вверх, но объект не зависает на одной высоте:
+          // как только перестроение завершено, он снова движется вниз.
+          obstacle.y -= verticalStep + Math.abs(moveX) * 0.55;
+        }
 
         obstacle.lane = nearestLaneIndex(
           obstacle.x + obstacle.width / 2,
           lanes.centers
         );
-      } else {
-        // До начала манёвра и после отметки 80% — обычное движение исходной версии.
-        obstacle.y += roadSpeed * obstacle.extraSpeed * dt;
-
-        if (obstacle.sway) {
-          obstacle.swayTime += dt;
-          if (obstacle.swayTime > 1.4 && Math.random() < dt * 0.35) {
-            obstacle.sway *= -1;
-          }
-          obstacle.x += obstacle.sway * lanes.laneWidth * 0.12 * dt;
-          obstacle.x = clamp(
-            obstacle.x,
-            lanes.left + 3,
-            lanes.right - obstacle.width - 3
-          );
+      } else if (obstacle.sway) {
+        obstacle.swayTime += dt;
+        if (obstacle.swayTime > 1.4 && Math.random() < dt * 0.35) {
+          obstacle.sway *= -1;
         }
+        obstacle.x += obstacle.sway * lanes.laneWidth * 0.12 * dt;
+        obstacle.x = clamp(
+          obstacle.x,
+          lanes.left + 3,
+          lanes.right - obstacle.width - 3
+        );
       }
     }
 
