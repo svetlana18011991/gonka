@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Educational Race v35.0 — multiple-answer questions -->
+<!-- Educational Race v35.1 — multiple-answer questions + background/scratch fixes -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -461,6 +461,7 @@
       font-weight: 900;
     }
     .scratch-tool.active { background: #dbeafe; border-color: #3b82f6; }
+    .scratch-icon-tool { padding: 0; display: grid; place-items: center; font-size: 20px; line-height: 1; }
     .scratch-close { background: #fee2e2; border-color: #fca5a5; }
 
     .scratch-body {
@@ -743,7 +744,7 @@
             <div class="scratch-controls">
               <label title="Цвет линии">Цвет <input id="scratchColor" type="color" value="#172554" /></label>
               <label title="Толщина линии">Толщина <input id="scratchSize" type="range" min="2" max="24" value="5" /></label>
-              <button class="scratch-tool" id="scratchEraser" type="button" title="Ластик">Ластик</button>
+              <button class="scratch-tool scratch-icon-tool" id="scratchEraser" type="button" title="Ластик" aria-label="Ластик" aria-pressed="false">🧽</button>
               <button class="scratch-tool" id="scratchClear" type="button" title="Очистить черновик">Очистить</button>
               <button class="scratch-tool scratch-close" id="scratchClose" type="button" title="Закрыть черновик">✕</button>
             </div>
@@ -1258,7 +1259,7 @@
 
   const ENVIRONMENT_ID = GAME_CONFIG.environmentId || 'meadow';
   const ENVIRONMENT = GAME_CONFIG.customEnvironment
-    ? { id: 'custom', name: 'Своя тема', left: GAME_CONFIG.customEnvironment, right: GAME_CONFIG.customEnvironment }
+    ? { id: 'custom', name: 'Своя тема', source: GAME_CONFIG.customEnvironment }
     : (ENVIRONMENTS[ENVIRONMENT_ID] || ENVIRONMENTS.meadow);
 
   const TRACK_IDS = ['highway', 'space', 'sea', 'magic', 'digital', 'forest', 'vessel'];
@@ -1326,6 +1327,7 @@
   const loaded = {
     sideLeft: null,
     sideRight: null,
+    customEnvironment: null,
     players: new Map(),
     traffic: new Map(),
     bonus: null,
@@ -1436,8 +1438,13 @@
   }
 
   async function preload() {
-    loaded.sideLeft = await loadWithFallback(ENVIRONMENT.left, ASSETS.roadside.left);
-    loaded.sideRight = await loadWithFallback(ENVIRONMENT.right, ASSETS.roadside.right);
+    if (ENVIRONMENT.source) {
+      try { loaded.customEnvironment = await loadImage(ENVIRONMENT.source); }
+      catch (error) { console.warn(error.message); }
+    } else {
+      loaded.sideLeft = await loadWithFallback(ENVIRONMENT.left, ASSETS.roadside.left);
+      loaded.sideRight = await loadWithFallback(ENVIRONMENT.right, ASSETS.roadside.right);
+    }
     if (CUSTOM_TRACK) {
       try { loaded.track = await loadImage(CUSTOM_TRACK); }
       catch (error) { console.warn(error.message); }
@@ -2093,6 +2100,7 @@
   let scratchDrawing = false;
   let scratchEraseMode = false;
   let scratchLastPoint = null;
+  let scratchPrevPoint = null;
 
   function resizeScratchCanvas(preserve = true) {
     if (!scratchCanvas || !scratchBody) return;
@@ -2148,6 +2156,7 @@
     if (!scratchPanel) return;
     scratchDrawing = false;
     scratchLastPoint = null;
+    scratchPrevPoint = null;
     scratchPanel.classList.remove('open');
     scratchPanel.setAttribute('aria-hidden', 'true');
     scratchToggle?.classList.remove('active');
@@ -2168,33 +2177,61 @@
     };
   }
 
+  function strokeScratchSegment(fromPoint, controlPoint, toPoint) {
+    if (!scratchContext || !fromPoint || !controlPoint || !toPoint) return;
+    scratchContext.save();
+    scratchContext.globalCompositeOperation = scratchEraseMode ? 'destination-out' : 'source-over';
+    scratchContext.strokeStyle = scratchColor?.value || '#172554';
+    scratchContext.lineWidth = Number(scratchSize?.value || 5);
+    scratchContext.beginPath();
+    scratchContext.moveTo(fromPoint.x, fromPoint.y);
+    scratchContext.quadraticCurveTo(controlPoint.x, controlPoint.y, toPoint.x, toPoint.y);
+    scratchContext.stroke();
+    scratchContext.restore();
+  }
+
+  function drawScratchDot(point) {
+    if (!scratchContext || !point) return;
+    const radius = Math.max(1, Number(scratchSize?.value || 5) / 2);
+    scratchContext.save();
+    scratchContext.globalCompositeOperation = scratchEraseMode ? 'destination-out' : 'source-over';
+    scratchContext.fillStyle = scratchColor?.value || '#172554';
+    scratchContext.beginPath();
+    scratchContext.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    scratchContext.fill();
+    scratchContext.restore();
+  }
+
   function beginScratch(event) {
     if (!scratchContext) resizeScratchCanvas(false);
     scratchDrawing = true;
     scratchLastPoint = scratchPoint(event);
+    scratchPrevPoint = scratchLastPoint;
+    drawScratchDot(scratchLastPoint);
     scratchCanvas.setPointerCapture?.(event.pointerId);
     event.preventDefault();
   }
 
   function drawScratch(event) {
     if (!scratchDrawing || !scratchContext || !scratchLastPoint) return;
-    const point = scratchPoint(event);
-    scratchContext.save();
-    scratchContext.globalCompositeOperation = scratchEraseMode ? 'destination-out' : 'source-over';
-    scratchContext.strokeStyle = scratchColor?.value || '#172554';
-    scratchContext.lineWidth = Number(scratchSize?.value || 5);
-    scratchContext.beginPath();
-    scratchContext.moveTo(scratchLastPoint.x, scratchLastPoint.y);
-    scratchContext.lineTo(point.x, point.y);
-    scratchContext.stroke();
-    scratchContext.restore();
-    scratchLastPoint = point;
+    const events = typeof event.getCoalescedEvents === 'function' ? event.getCoalescedEvents() : [event];
+    for (const pointerEvent of events) {
+      const point = scratchPoint(pointerEvent);
+      const middle = { x: (scratchLastPoint.x + point.x) / 2, y: (scratchLastPoint.y + point.y) / 2 };
+      strokeScratchSegment(scratchPrevPoint || scratchLastPoint, scratchLastPoint, middle);
+      scratchPrevPoint = middle;
+      scratchLastPoint = point;
+    }
     event.preventDefault();
   }
 
   function endScratch(event) {
+    if (scratchContext && scratchDrawing && scratchPrevPoint && scratchLastPoint) {
+      strokeScratchSegment(scratchPrevPoint, scratchLastPoint, scratchLastPoint);
+    }
     scratchDrawing = false;
     scratchLastPoint = null;
+    scratchPrevPoint = null;
     try { scratchCanvas.releasePointerCapture?.(event.pointerId); } catch {}
   }
 
@@ -2204,7 +2241,7 @@
   scratchEraser?.addEventListener('click', () => {
     scratchEraseMode = !scratchEraseMode;
     scratchEraser.classList.toggle('active', scratchEraseMode);
-    scratchEraser.textContent = scratchEraseMode ? gt('Рисовать') : gt('Ластик');
+    scratchEraser.setAttribute('aria-pressed', scratchEraseMode ? 'true' : 'false');
   });
   scratchCanvas?.addEventListener('pointerdown', beginScratch);
   scratchCanvas?.addEventListener('pointermove', drawScratch);
@@ -2220,7 +2257,7 @@
     closeScratch(true);
     scratchEraseMode = false;
     scratchEraser?.classList.remove('active');
-    if (scratchEraser) scratchEraser.textContent = gt('Ластик');
+    scratchEraser?.setAttribute('aria-pressed', 'false');
 
     $('#quizLevel').textContent = state.draftPreview ? gt('Черновик вопроса — не сохранён') : gt('Реши задание, чтобы продолжить');
     const question = $('#quizQuestion');
@@ -2508,8 +2545,17 @@
     const lanes = laneData();
     const { left, right } = lanes;
 
-    drawSideRepeat(loaded.sideLeft, 0, left);
-    drawSideRepeat(loaded.sideRight, right, state.W - right);
+    if (loaded.customEnvironment) {
+      const wideBackground = loaded.customEnvironment.naturalWidth >= loaded.customEnvironment.naturalHeight * 1.2;
+      if (wideBackground) drawEnvironmentBase(loaded.customEnvironment);
+      else {
+        drawSideRepeat(loaded.customEnvironment, 0, left);
+        drawSideRepeat(loaded.customEnvironment, right, state.W - right);
+      }
+    } else {
+      drawSideRepeat(loaded.sideLeft, 0, left);
+      drawSideRepeat(loaded.sideRight, right, state.W - right);
+    }
 
     if (loaded.track) {
       drawCustomTrack(loaded.track, lanes);
@@ -2526,6 +2572,30 @@
       vessel: drawVesselTrack
     };
     (drawers[TRACK_ID] || drawHighwayTrack)(lanes);
+  }
+
+  function drawEnvironmentBase(image) {
+    if (!image) return;
+    const imageRatio = image.naturalWidth / Math.max(1, image.naturalHeight);
+    const stageRatio = state.W / Math.max(1, state.H);
+    let drawWidth;
+    let drawHeight;
+    let x;
+    let y;
+
+    if (imageRatio > stageRatio) {
+      drawHeight = state.H;
+      drawWidth = drawHeight * imageRatio;
+      x = (state.W - drawWidth) / 2;
+      y = 0;
+    } else {
+      drawWidth = state.W;
+      drawHeight = drawWidth / Math.max(.0001, imageRatio);
+      x = 0;
+      y = (state.H - drawHeight) / 2;
+    }
+
+    ctx.drawImage(image, x, y, drawWidth, drawHeight);
   }
 
   function drawCustomTrack(image, lanes) {
