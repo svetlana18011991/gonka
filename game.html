@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Educational Race v34.16 — original traffic speed with one small forward lane-change nudge -->
+<!-- Educational Race v34.17 — branded editor and smoother scratch drawing -->
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
@@ -2214,6 +2214,7 @@
   let scratchDrawing = false;
   let scratchEraseMode = false;
   let scratchLastPoint = null;
+  let scratchLastMidPoint = null;
 
   function resizeScratchCanvas(preserve = true) {
     if (!scratchCanvas || !scratchBody) return;
@@ -2233,7 +2234,7 @@
     scratchCanvas.height = Math.round(rect.height * ratio);
     scratchCanvas.style.width = `${rect.width}px`;
     scratchCanvas.style.height = `${rect.height}px`;
-    scratchContext = scratchCanvas.getContext('2d');
+    scratchContext = scratchCanvas.getContext('2d', { desynchronized: true });
     scratchContext.setTransform(ratio, 0, 0, ratio, 0, 0);
     scratchContext.lineCap = 'round';
     scratchContext.lineJoin = 'round';
@@ -2269,6 +2270,7 @@
     if (!scratchPanel) return;
     scratchDrawing = false;
     scratchLastPoint = null;
+    scratchLastMidPoint = null;
     scratchPanel.classList.remove('open');
     scratchPanel.setAttribute('aria-hidden', 'true');
     scratchToggle?.classList.remove('active');
@@ -2289,33 +2291,72 @@
     };
   }
 
+  function scratchMidPoint(a, b) {
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+
+  function applyScratchStyle(context) {
+    context.globalCompositeOperation = scratchEraseMode ? 'destination-out' : 'source-over';
+    context.strokeStyle = scratchColor?.value || '#172554';
+    context.fillStyle = scratchColor?.value || '#172554';
+    context.lineWidth = Number(scratchSize?.value || 5);
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+  }
+
   function beginScratch(event) {
     if (!scratchContext) resizeScratchCanvas(false);
+    if (!scratchContext) return;
     scratchDrawing = true;
     scratchLastPoint = scratchPoint(event);
+    scratchLastMidPoint = scratchLastPoint;
     scratchCanvas.setPointerCapture?.(event.pointerId);
+
+    scratchContext.save();
+    applyScratchStyle(scratchContext);
+    scratchContext.beginPath();
+    scratchContext.arc(scratchLastPoint.x, scratchLastPoint.y, Math.max(.6, scratchContext.lineWidth / 2), 0, Math.PI * 2);
+    scratchContext.fill();
+    scratchContext.restore();
     event.preventDefault();
   }
 
   function drawScratch(event) {
-    if (!scratchDrawing || !scratchContext || !scratchLastPoint) return;
-    const point = scratchPoint(event);
+    if (!scratchDrawing || !scratchContext || !scratchLastPoint || !scratchLastMidPoint) return;
+    const samples = typeof event.getCoalescedEvents === 'function' ? event.getCoalescedEvents() : [event];
+    const points = samples.length ? samples.map(scratchPoint) : [scratchPoint(event)];
+
     scratchContext.save();
-    scratchContext.globalCompositeOperation = scratchEraseMode ? 'destination-out' : 'source-over';
-    scratchContext.strokeStyle = scratchColor?.value || '#172554';
-    scratchContext.lineWidth = Number(scratchSize?.value || 5);
-    scratchContext.beginPath();
-    scratchContext.moveTo(scratchLastPoint.x, scratchLastPoint.y);
-    scratchContext.lineTo(point.x, point.y);
-    scratchContext.stroke();
+    applyScratchStyle(scratchContext);
+    for (const point of points) {
+      const dx = point.x - scratchLastPoint.x;
+      const dy = point.y - scratchLastPoint.y;
+      if (dx * dx + dy * dy < .04) continue;
+      const midPoint = scratchMidPoint(scratchLastPoint, point);
+      scratchContext.beginPath();
+      scratchContext.moveTo(scratchLastMidPoint.x, scratchLastMidPoint.y);
+      scratchContext.quadraticCurveTo(scratchLastPoint.x, scratchLastPoint.y, midPoint.x, midPoint.y);
+      scratchContext.stroke();
+      scratchLastPoint = point;
+      scratchLastMidPoint = midPoint;
+    }
     scratchContext.restore();
-    scratchLastPoint = point;
     event.preventDefault();
   }
 
   function endScratch(event) {
+    if (scratchDrawing && scratchContext && scratchLastPoint && scratchLastMidPoint) {
+      scratchContext.save();
+      applyScratchStyle(scratchContext);
+      scratchContext.beginPath();
+      scratchContext.moveTo(scratchLastMidPoint.x, scratchLastMidPoint.y);
+      scratchContext.lineTo(scratchLastPoint.x, scratchLastPoint.y);
+      scratchContext.stroke();
+      scratchContext.restore();
+    }
     scratchDrawing = false;
     scratchLastPoint = null;
+    scratchLastMidPoint = null;
     try { scratchCanvas.releasePointerCapture?.(event.pointerId); } catch {}
   }
 
