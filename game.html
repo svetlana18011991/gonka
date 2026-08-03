@@ -669,8 +669,8 @@
       </div>
       <div class="hud-group">
         <div class="pill lives-pill"><small>Жизни</small><strong id="livesValue">♥ ♥ ♥ ♥ ♥</strong></div>
-        <button class="icon-btn" id="pauseButton" title="Пауза">⏸</button>
-        <button class="icon-btn" id="homeButton" title="В меню">⌂</button>
+        <button class="icon-btn" id="pauseButton" type="button" title="Пауза" aria-label="Пауза">⏸</button>
+        <button class="icon-btn" id="homeButton" type="button" title="В меню" aria-label="В меню">⌂</button>
       </div>
     </div>
 
@@ -1317,8 +1317,9 @@
   if (!TRAFFIC_OPTIONS.length) TRAFFIC_OPTIONS.push(ASSETS.traffic[0]);
 
   const ENVIRONMENT_ID = GAME_CONFIG.environmentId || 'meadow';
-  const ENVIRONMENT = GAME_CONFIG.customEnvironment
-    ? { id: 'custom', name: 'Своя тема', left: GAME_CONFIG.customEnvironment, right: GAME_CONFIG.customEnvironment }
+  const CUSTOM_ENVIRONMENT = typeof GAME_CONFIG.customEnvironment === 'string' ? GAME_CONFIG.customEnvironment : '';
+  const ENVIRONMENT = CUSTOM_ENVIRONMENT
+    ? { id: 'custom', name: 'Своя тема', left: CUSTOM_ENVIRONMENT, right: CUSTOM_ENVIRONMENT }
     : (ENVIRONMENTS[ENVIRONMENT_ID] || ENVIRONMENTS.meadow);
 
   const TRACK_IDS = ['highway', 'space', 'sea', 'magic', 'digital', 'forest', 'vessel'];
@@ -1359,6 +1360,8 @@
   const MAX_LIVES = Math.max(1, Math.min(10, Number(GAME_CONFIG.maxLives) || 5));
   const STAR_POINTS = Math.max(1, Number(GAME_CONFIG.starPoints) || 10);
   const LIFE_SCORE_STEP = Math.max(10, Number(GAME_CONFIG.lifeScoreStep) || 100);
+  const PLAYER_SIZE_MULTIPLIER = Math.max(.8, Math.min(1.3, (Number(GAME_CONFIG.playerSizePercent) || 105) / 100));
+  const TRAFFIC_SIZE_MULTIPLIER = Math.max(.8, Math.min(1.3, (Number(GAME_CONFIG.trafficSizePercent) || 110) / 100));
   const BONUS_ROTATES = GAME_CONFIG.bonusRotate !== false;
 
   const $ = selector => document.querySelector(selector);
@@ -1581,10 +1584,10 @@
     state.player.image = image || state.player.image;
     state.player.rotation = spec?.rotation || 0;
 
-    const targetWidth = lanes.laneWidth * 0.72;
+    const targetWidth = lanes.laneWidth * 0.72 * PLAYER_SIZE_MULTIPLIER;
     const ratio = image ? image.naturalHeight / image.naturalWidth : 1.8;
     state.player.width = targetWidth;
-    state.player.height = Math.min(state.H * 0.27, targetWidth * ratio);
+    state.player.height = Math.min(state.H * 0.27 * PLAYER_SIZE_MULTIPLIER, targetWidth * ratio);
     state.player.y = state.H * 0.77 - state.player.height / 2;
 
     if (forceCenter || !Number.isFinite(state.player.x)) {
@@ -1727,6 +1730,13 @@
 
   function updatePlayer(dt) {
     const lanes = laneData();
+
+    // Сохраняем позицию предыдущего кадра. Она нужна, чтобы столкновение
+    // не потерялось, если игрок и перестраивающийся объект пересеклись
+    // между двумя кадрами анимации.
+    state.player.prevX = Number.isFinite(state.player.x) ? state.player.x : 0;
+    state.player.prevY = Number.isFinite(state.player.y) ? state.player.y : 0;
+
     let direction = 0;
     if (state.keys.left) direction -= 1;
     if (state.keys.right) direction += 1;
@@ -1783,9 +1793,9 @@
     const spec = weightedTraffic();
     const image = loaded.traffic.get(spec.id);
     if (!image) return;
-    const width = lanes.laneWidth * (spec.scale || .72);
+    const width = lanes.laneWidth * (spec.scale || .72) * TRAFFIC_SIZE_MULTIPLIER;
     const ratio = image.naturalHeight / image.naturalWidth;
-    const height = Math.min(state.H * 0.36, width * ratio);
+    const height = Math.min(state.H * 0.36 * TRAFFIC_SIZE_MULTIPLIER, width * ratio);
     const x = lanes.centers[lane] - width / 2;
 
     state.obstacles.push({
@@ -1871,9 +1881,10 @@
     for (let lane = 0; lane < lanes.laneCount; lane++) {
       const spec = TRAFFIC_OPTIONS[lane % TRAFFIC_OPTIONS.length];
       const image = loaded.traffic.get(spec.id);
-      const width = lanes.laneWidth * Math.min(.76, Math.max(.58, spec.scale || .68));
+      const baseScale = Math.min(.76, Math.max(.58, spec.scale || .68));
+      const width = lanes.laneWidth * Math.min(.94, baseScale * TRAFFIC_SIZE_MULTIPLIER);
       const ratio = image.naturalHeight / image.naturalWidth;
-      const height = Math.min(state.H * 0.27, width * ratio);
+      const height = Math.min(state.H * 0.27 * TRAFFIC_SIZE_MULTIPLIER, width * ratio);
       const offsetY = offsets[lane] * lanes.laneWidth;
       maxBottom = Math.max(maxBottom, offsetY + height);
 
@@ -1939,6 +1950,12 @@
     const lanes = laneData();
 
     for (const obstacle of state.obstacles) {
+      // Запоминаем положение до движения. Обычная проверка только по
+      // конечной позиции может пропустить быстрое диагональное пересечение.
+      obstacle.prevX = Number.isFinite(obstacle.x) ? obstacle.x : 0;
+      obstacle.prevY = Number.isFinite(obstacle.y) ? obstacle.y : 0;
+      obstacle.isLaneChanging = false;
+
       if (obstacle.kind === 'finish') {
         obstacle.y += roadSpeed * 0.78 * dt;
         continue;
@@ -2013,6 +2030,10 @@
           lanes.right - obstacle.width - 3
         );
       }
+
+      // Во время любого бокового движения используем более точную и
+      // немного более широкую область столкновения.
+      obstacle.isLaneChanging = Math.abs(obstacle.x - obstacle.prevX) > 0.01;
     }
 
     state.obstacles = state.obstacles.filter(obstacle =>
@@ -2081,9 +2102,25 @@
   function checkCollisions() {
     if (state.invulnerable > 0 || state.mode !== 'running') return;
 
-    const playerRect = insetRect(state.player, 0.20, 0.12);
+    // Хитбокс игрока теперь ближе к видимому размеру объекта. Раньше он
+    // занимал лишь 60% ширины картинки, поэтому боковой удар при
+    // перестроении мог визуально произойти, но логически не засчитаться.
+    const playerSource = state.player;
+    const playerPrevSource = {
+      ...state.player,
+      x: Number.isFinite(state.player.prevX) ? state.player.prevX : state.player.x,
+      y: Number.isFinite(state.player.prevY) ? state.player.prevY : state.player.y
+    };
+    const playerRect = insetRect(playerSource, 0.14, 0.09);
+    const playerPrevRect = insetRect(playerPrevSource, 0.14, 0.09);
 
     for (const obstacle of state.obstacles) {
+      const obstaclePrevSource = {
+        ...obstacle,
+        x: Number.isFinite(obstacle.prevX) ? obstacle.prevX : obstacle.x,
+        y: Number.isFinite(obstacle.prevY) ? obstacle.prevY : obstacle.y
+      };
+
       if (obstacle.kind === 'finish') {
         const finishRect = {
           x: obstacle.x,
@@ -2091,23 +2128,58 @@
           width: obstacle.width,
           height: obstacle.height
         };
-        if (rectsOverlap(playerRect, finishRect)) {
+        const finishPrevRect = {
+          x: obstaclePrevSource.x,
+          y: obstaclePrevSource.y,
+          width: obstacle.width,
+          height: obstacle.height
+        };
+        if (
+          rectsOverlap(playerRect, finishRect) ||
+          rectsOverlap(playerPrevRect, finishPrevRect) ||
+          sweptRectsOverlap(playerPrevRect, playerRect, finishPrevRect, finishRect)
+        ) {
           finishGame();
           return;
         }
         continue;
       }
 
-      const obstacleRect = obstacle.kind === 'lessonGate'
-        ? {
-            x: obstacle.x,
-            y: obstacle.y,
-            width: obstacle.width,
-            height: obstacle.height
-          }
-        : insetRect(obstacle, (1 - obstacle.hitScale) / 2, 0.10);
+      let obstacleRect;
+      let obstaclePrevRect;
 
-      if (rectsOverlap(playerRect, obstacleRect)) {
+      if (obstacle.kind === 'lessonGate') {
+        obstacleRect = {
+          x: obstacle.x,
+          y: obstacle.y,
+          width: obstacle.width,
+          height: obstacle.height
+        };
+        obstaclePrevRect = {
+          x: obstaclePrevSource.x,
+          y: obstaclePrevSource.y,
+          width: obstacle.width,
+          height: obstacle.height
+        };
+      } else {
+        const configuredScale = Number.isFinite(obstacle.hitScale) ? obstacle.hitScale : 0.82;
+        const effectiveScale = obstacle.isLaneChanging
+          ? Math.max(configuredScale, 0.94)
+          : Math.max(configuredScale, 0.80);
+        const horizontalInset = (1 - effectiveScale) / 2;
+        const verticalInset = obstacle.isLaneChanging ? 0.06 : 0.09;
+        obstacleRect = insetRect(obstacle, horizontalInset, verticalInset);
+        obstaclePrevRect = insetRect(obstaclePrevSource, horizontalInset, verticalInset);
+      }
+
+      // Проверяем не только совпадение в текущем кадре, но и весь путь
+      // между предыдущей и текущей позициями. Это устраняет «проскок» при
+      // быстром диагональном перестроении объекта прямо в игрока.
+      if (
+        rectsOverlap(playerRect, obstacleRect) ||
+        rectsOverlap(playerPrevRect, obstaclePrevRect) ||
+        sweptRectsOverlap(playerPrevRect, playerRect, obstaclePrevRect, obstacleRect)
+      ) {
         collide(obstacle);
         return;
       }
@@ -2500,9 +2572,14 @@
   function drawRoadAndScenery() {
     const lanes = laneData();
     const { left, right } = lanes;
+    const landscapeCustom = Boolean(CUSTOM_ENVIRONMENT) && loaded.sideLeft && loaded.sideLeft.naturalWidth > loaded.sideLeft.naturalHeight * 1.05;
 
-    drawSideRepeat(loaded.sideLeft, 0, left);
-    drawSideRepeat(loaded.sideRight, right, state.W - right);
+    if (landscapeCustom) {
+      drawLandscapeEnvironment(loaded.sideLeft);
+    } else {
+      drawSideRepeat(loaded.sideLeft, 0, left);
+      drawSideRepeat(loaded.sideRight, right, state.W - right);
+    }
 
     if (loaded.track) {
       drawCustomTrack(loaded.track, lanes);
@@ -2756,6 +2833,24 @@
     ctx.restore();
     drawTrackEdges(lanes,'#ff9fb2','rgba(255,80,118,.75)',9);
     drawLaneLines(lanes,'#ffd1da',.40,3,1.2);
+  }
+
+  function drawLandscapeEnvironment(image) {
+    if (!image) return;
+
+    const imageWidth = Math.max(1, image.naturalWidth || image.width || 1);
+    const imageHeight = Math.max(1, image.naturalHeight || image.height || 1);
+    const scale = Math.max(state.W / imageWidth, state.H / imageHeight);
+    const drawWidth = imageWidth * scale;
+    const drawHeight = imageHeight * scale;
+    const drawX = (state.W - drawWidth) / 2;
+    const drawY = (state.H - drawHeight) / 2;
+
+    ctx.save();
+    ctx.fillStyle = '#111b27';
+    ctx.fillRect(0, 0, state.W, state.H);
+    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+    ctx.restore();
   }
 
   function drawSideRepeat(image, x, width) {
@@ -3027,6 +3122,12 @@
 
   stage.addEventListener('pointerdown', event => {
     if (state.mode !== 'running') return;
+
+    // Кнопки и поля интерфейса находятся внутри #stage.
+    // Не перехватываем их указатель, иначе браузер отправляет click
+    // самому игровому полю, и кнопки паузы/меню не срабатывают.
+    if (event.target.closest('button, input, textarea, select, label, a')) return;
+
     stage.setPointerCapture?.(event.pointerId);
     const rect = stage.getBoundingClientRect();
     state.dragX = event.clientX - rect.left;
@@ -3094,6 +3195,45 @@
       a.y < b.y + b.height &&
       a.y + a.height > b.y
     );
+  }
+
+  function sweptRectsOverlap(aStart, aEnd, bStart, bEnd) {
+    // Непрерывная проверка AABB: рассматриваем относительное движение
+    // двух прямоугольников за один кадр и находим момент первого касания.
+    const velocityX = (aEnd.x - aStart.x) - (bEnd.x - bStart.x);
+    const velocityY = (aEnd.y - aStart.y) - (bEnd.y - bStart.y);
+
+    let xEntry;
+    let xExit;
+    if (Math.abs(velocityX) < 0.000001) {
+      if (aStart.x + aStart.width <= bStart.x || aStart.x >= bStart.x + bStart.width) return false;
+      xEntry = -Infinity;
+      xExit = Infinity;
+    } else if (velocityX > 0) {
+      xEntry = (bStart.x - (aStart.x + aStart.width)) / velocityX;
+      xExit = ((bStart.x + bStart.width) - aStart.x) / velocityX;
+    } else {
+      xEntry = ((bStart.x + bStart.width) - aStart.x) / velocityX;
+      xExit = (bStart.x - (aStart.x + aStart.width)) / velocityX;
+    }
+
+    let yEntry;
+    let yExit;
+    if (Math.abs(velocityY) < 0.000001) {
+      if (aStart.y + aStart.height <= bStart.y || aStart.y >= bStart.y + bStart.height) return false;
+      yEntry = -Infinity;
+      yExit = Infinity;
+    } else if (velocityY > 0) {
+      yEntry = (bStart.y - (aStart.y + aStart.height)) / velocityY;
+      yExit = ((bStart.y + bStart.height) - aStart.y) / velocityY;
+    } else {
+      yEntry = ((bStart.y + bStart.height) - aStart.y) / velocityY;
+      yExit = (bStart.y - (aStart.y + aStart.height)) / velocityY;
+    }
+
+    const entryTime = Math.max(xEntry, yEntry);
+    const exitTime = Math.min(xExit, yExit);
+    return entryTime <= exitTime && exitTime >= 0 && entryTime <= 1;
   }
 
   function insetRect(rect, xPart, yPart) {
